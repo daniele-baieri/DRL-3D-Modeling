@@ -1,0 +1,20 @@
+\documentclass{article}
+
+\title{3D Modeling survey}
+
+\begin{document}
+\maketitle
+
+N-gon meshes are not always the best choice: rendering engines eventually triangulate them, so there's really no benefit in making an overly complicated model to get n-gon meshes
+Especially for real-time applications, using n-gons add a computational overhead.
+
+Artifacts: often the introduction of n-gons causes undesired modifications of the surface's topology. We don't want these.
+
+Edge loops are actually a very good instrument for 3D modeling: apply them to all dimensions! Then, you will be able to edit all the intersection points of the edge loops.
+Watch out though, this might be a source of artifacts.
+
+Idea: when in the 'edit loops' step, if you can't edit a loop to get improvement, add a loop!.
+
+Idea: when in the 'cover shape' step, if you can't edit cuboids to get improvement, substitute a cuboid with another primitive.
+
+\end{document}
