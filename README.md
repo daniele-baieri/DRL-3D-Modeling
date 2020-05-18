@@ -1,4 +1,4 @@
-# Course Project for the Deep Learning and Applied AI course (2020)
+# Course Project for the Deep Learning and Applied AI course (Computer Science Master Degree @ La Sapienza Università di Roma, 2020)
 Author: Daniele Baieri
 
 ## Abstract
