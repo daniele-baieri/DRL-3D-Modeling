@@ -1,10 +1,11 @@
-import sys
-sys.path.append('../../')
+import sys, os
+#sys.path.insert(0, os.path.abspath('../../'))
 import torch
 
 from typing import Set
+
+from agents.prim.prim_state import PrimState
 from geometry.primitive import Primitive
-from agents.state import State
 from agents.action import Action
 
 

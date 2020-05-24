@@ -1,0 +1,6 @@
+Training loop should be something like this:
+
+
+for reference in dataset:
+    while <condition>:
+        /*train*/

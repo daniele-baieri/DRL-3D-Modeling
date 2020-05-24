@@ -3,6 +3,9 @@ import typing
 
 class Primitive:
 
+    def __init__(self):
+        pass
+
     def slide(self, vertex: int, axis: int, amount: float):
         """
         @param vertex: the vertex to slide along axis 'axis'
