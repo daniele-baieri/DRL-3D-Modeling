@@ -14,19 +14,30 @@ class PrimAction(Action):
     primitives = 0
     vertices = 0
 
-    def __init__(self, prim: int, vert: int, slide: int, delete: bool):
-        assert prim >= 0 and prim < self.primitives and vert >= 0 and vert < self.vertices
+    def __init__(self, prim: int, vert: int=None, slide: float=None, axis: int=None, delete: bool=False):
+        assert prim >= 0 and prim < self.primitives 
+
+        self.__prim = prim
         self.__delete = delete
-        if not self.__delete:
-            self.__prim = prim
+        if not delete:
+            assert vert is not None and slide is not None
+            assert vert >= 0 and vert < self.vertices
+            assert axis >= 0 and axis < 3
             self.__vert = vert
+            self.__axis = axis
             self.__slide = slide
 
 
     def _apply(self, s: PrimState) -> PrimState:
-        pass
+        prims = s.get_primitives()
+        if self.__delete:
+            prims.pop(self.__prim)
+            return PrimState(prims)
+        else:
+            prims[self.__prim].slide(self.__vert, self.__axis, self.__slide)
+            return PrimState(prims)
 
     @classmethod
-    def init_action_space(cls, prims: int, verts: int):
+    def init_action_space(cls, prims: int, verts: int) -> None:
         cls.primitives = prims
         cls.vertices = verts

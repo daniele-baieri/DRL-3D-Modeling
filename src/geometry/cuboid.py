@@ -16,3 +16,14 @@ class Cuboid(Primitive):
     def slide(self, vertex: int, axis: int, amount: float) -> None:
         self.__vert[vertex,axis] += amount
 
+    def get_pivots(self) -> torch.FloatTensor:
+        return self.__vert
+
+    '''
+    def get_vertices(self) -> torch.FloatTensor:
+        return torch.FloatTensor([
+            []
+            for i in range(3)
+        ])
+    '''
+    
