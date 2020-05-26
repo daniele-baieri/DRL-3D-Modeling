@@ -13,6 +13,9 @@ class Cuboid(Primitive):
         self.__vert = v
         # self.__points = 2
 
+    def __repr__(self) -> str:
+        return repr(self.__vert.tolist())
+
     def slide(self, vertex: int, axis: int, amount: float) -> None:
         self.__vert[vertex,axis] += amount
 

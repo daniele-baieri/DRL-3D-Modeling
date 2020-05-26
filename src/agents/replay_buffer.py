@@ -1,5 +1,5 @@
 from torch.utils.data import Dataset
-from experience import Experience
+from agents.experience import Experience
 
 
 class ReplayBuffer(Dataset):

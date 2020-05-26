@@ -27,6 +27,14 @@ class PrimAction(Action):
             self.__axis = axis
             self.__slide = slide
 
+    def __repr__(self) -> str:
+        if self.__delete:
+            return '<DEL primitive ' + str(self.__prim) + '>'
+        else:
+            return '<SLIDE vertex ' + str(self.__vert) + \
+                ' of primitive ' + str(self.__prim) + \
+                ' on axis ' + str(self.__axis) + \
+                ' of amount ' + str(self.__slide) + '>'
 
     def _apply(self, s: PrimState) -> PrimState:
         prims = s.get_primitives()

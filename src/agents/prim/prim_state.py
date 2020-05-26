@@ -1,7 +1,6 @@
-import sys, os, copy
-#sys.path.insert(0, os.path.abspath('../../'))
+import copy
 import torch
-from typing import List, Dict
+from typing import List
 
 from geometry.cuboid import Cuboid
 from agents.state import State
@@ -15,8 +14,11 @@ class PrimState(State):
         #assert len(prim) == pow(self.num_primitives, 3)
         self.__primitives = prim
 
+    def __repr__(self) -> str:
+        return repr(self.__primitives)
+
     def tensorize(self) -> torch.FloatTensor:
-        return torch.stack(  #doubt about this shape: how do we want to process this? voxels? all vertices?
+        return torch.stack(  #doubt about this shape: how do we want to process this? 
             [x.get_pivots() for x in self.__primitives]
         )
 

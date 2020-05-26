@@ -1,6 +1,4 @@
-import sys, os
-#sys.path.insert(0, os.path.abspath('../../'))
-
+import sys
 import torch
 from torch.nn import Module
 
