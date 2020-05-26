@@ -1,8 +1,10 @@
+from __future__ import annotations
 import sys, os
 #sys.path.insert(0, os.path.abspath('../../'))
 import torch
 
-from typing import Set
+from typing import Set, List
+from itertools import product
 
 from agents.prim.prim_state import PrimState
 from geometry.primitive import Primitive
@@ -13,6 +15,7 @@ class PrimAction(Action):
 
     primitives = 0
     vertices = 0
+    slides = []
 
     def __init__(self, prim: int, vert: int=None, slide: float=None, axis: int=None, delete: bool=False):
         assert prim >= 0 and prim < self.primitives 
@@ -23,6 +26,7 @@ class PrimAction(Action):
             assert vert is not None and slide is not None
             assert vert >= 0 and vert < self.vertices
             assert axis >= 0 and axis < 3
+            assert slide in set(self.slides)
             self.__vert = vert
             self.__axis = axis
             self.__slide = slide
@@ -46,6 +50,29 @@ class PrimAction(Action):
             return PrimState(prims)
 
     @classmethod
-    def init_action_space(cls, prims: int, verts: int) -> None:
+    def init_action_space(cls, prims: int, verts: int, slides: List[float]) -> None:
         cls.primitives = prims
         cls.vertices = verts
+        cls.slides = slides
+
+    @classmethod
+    def ground(cls) -> List[PrimAction]:
+        res = []
+        #ground sliding actions
+        res.extend([
+            PrimAction(p, vert=v, slide=s, axis=a) 
+            for p, v, s, a in product(
+                range(cls.primitives),
+                range(cls.vertices),
+                cls.slides,
+                range(3)
+            )
+        ])
+        
+        #ground deleting actions
+        res.extend([
+            PrimAction(p, delete=True) 
+            for p in range(cls.primitives)
+        ])
+
+        return res

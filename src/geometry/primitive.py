@@ -12,4 +12,4 @@ class Primitive:
         @param axis: the axis along which to slide vertex 'vertex'
         @param amount: the additive factor of which to slide 'vertex' on 'axis'
         """
-        pass
+        raise NotImplementedError

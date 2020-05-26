@@ -1,6 +1,7 @@
 import torch
 from agents.prim.prim_state import PrimState
 from agents.prim.prim_action import PrimAction
+from agents.prim.prim_model import PrimModel
 from agents.environment import Environment
 from agents.experience import Experience
 from agents.replay_buffer import ReplayBuffer
@@ -8,6 +9,8 @@ from geometry.cuboid import Cuboid
 
 
 def test():
+    
+    """
     verts1 = torch.FloatTensor([[0,1,0],[1,0,0]])
     verts2 = torch.ones(2,3)
     prims = [
@@ -46,7 +49,21 @@ def test():
     print(a1)
     print(e)
     print(torch.ones(7))
+    
+    m = PrimModel()
+    t = torch.ones(3,3)
+    m.set_reference(t)
+    t1 = m.get_reference()
+    t1[0,0] = 0
+    print(t1)
+    print(m.get_reference())
+    
+    PrimState.init_state_space(3,2)
+    print(PrimState.initial().tensorize())
+    """
 
+    PrimAction.init_action_space(27, 2, [-2, -1, 1, 2])
+    print(len(PrimAction.ground()))
 
 if __name__ == "__main__":
     test()
