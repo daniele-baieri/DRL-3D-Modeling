@@ -16,7 +16,7 @@ class Environment:
         assert self.__current is not None and act is not None
         res = act(self.__current)
         rew = self.__reward(self.__current, res)
-        self.set_state(res)
+        #self.set_state(res)
         return res, rew
 
     def get_state(self) -> State:

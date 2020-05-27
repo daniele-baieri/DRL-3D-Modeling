@@ -60,10 +60,10 @@ def test():
     
     PrimState.init_state_space(3,2)
     print(PrimState.initial().tensorize())
-    """
 
     PrimAction.init_action_space(27, 2, [-2, -1, 1, 2])
     print(len(PrimAction.ground()))
+    """
 
 if __name__ == "__main__":
     test()
