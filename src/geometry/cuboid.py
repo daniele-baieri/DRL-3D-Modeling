@@ -1,5 +1,9 @@
+from __future__ import annotations
 import torch
+from itertools import product
+from typing import List
 from geometry.primitive import Primitive
+from torch_geometric.data import Data, Batch
 
 
 class Cuboid(Primitive):
@@ -22,11 +26,33 @@ class Cuboid(Primitive):
     def get_pivots(self) -> torch.FloatTensor:
         return self.__vert
 
-    '''
-    def get_vertices(self) -> torch.FloatTensor:
-        return torch.FloatTensor([
-            []
-            for i in range(3)
-        ])
-    '''
-    
+    def to_geom_data(self) -> Data:
+        vertices = torch.stack([ #enumerate all 8 vertices from V and V'
+            self.__vert[c,[0,1,2]]
+            for c in product([0,1], repeat=3)
+        ]).float()
+
+        edges = torch.tensor([ #vertices are adjacent if they differ for a single coordinate
+            [p, q]
+            for p, q in product(range(len(vertices)), repeat=2)
+            if sum(map(lambda x,y: bool(x-y),vertices[p],vertices[q])) == 1
+        ], dtype=torch.long)
+
+        return Data(pos=vertices, edge_index=edges.t().contiguous())
+
+    @classmethod
+    def aggregate(cls, C: List[Cuboid]) -> Data:
+        data = [c.to_geom_data() for c in C]
+        """
+        vertices = [d.pos for d in data]
+        edges, offset = [], 0
+        for d in data:
+            edges.append(d.edge_index + offset)
+            offset += d.pos.shape[0]
+        return Data(
+            pos=torch.cat(vertices),
+            edge_index=torch.cat(edges, dim=1)
+        )
+        """
+        return Batch.from_data_list(data)
+

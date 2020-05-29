@@ -10,7 +10,7 @@ from agents.state import State
 from agents.prim.prim_state import PrimState
 
 
-class RLTrainer:
+class DoubleDQNTrainer:
 
     def __init__(self, online: BaseModel, target: BaseModel,
                  env: Environment, opt: Optimizer, 

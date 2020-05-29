@@ -7,6 +7,8 @@ from itertools import product
 from geometry.cuboid import Cuboid
 from agents.state import State
 
+from torch_geometric.data import Data
+
 
 class PrimState(State):
 
@@ -31,6 +33,9 @@ class PrimState(State):
                 [x.get_pivots() for x in self.__primitives]
             )
 
+    def to_geom_data(self) -> Data:
+        return Cuboid.aggregate(self.__primitives)
+
     def get_primitives(self) -> List[Cuboid]:
         return copy.deepcopy(self.__primitives)
 
@@ -46,14 +51,18 @@ class PrimState(State):
             cls.__last_cube_size == cls.cube_side_len: 
             return cls.__initial_state_cache
 
-
-        top = cls.num_primitives * cls.cube_side_len
+        #top = cls.num_primitives# * cls.cube_side_len
         step = cls.cube_side_len
-        r = range(0, top, step)
+        r = range(0, cls.num_primitives)#, step)
 
         cubes = [
-            Cuboid(torch.tensor([tup, [x + cls.cube_side_len for x in tup]]))
-            for tup in product(r,r,r)
+            Cuboid(
+                torch.tensor([
+                    [x * step for x in tup], 
+                    [x * step + step for x in tup]
+                ])
+            )
+            for tup in product(r, repeat=3)
         ]
         init = PrimState(cubes)
         if cls.__initial_state_cache is None:
