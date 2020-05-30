@@ -30,7 +30,6 @@ def polar(data: Data, norm=True, max_val=None) -> Data:
 
 def collate(x: List[Experience]) -> Dict:
     data = [polar(e.get_source().to_geom_data()) for e in x]
-    print(data[0])
     # if other data in experience needs encoding, do it here (unlikely)
     return {
         'src': Batch.from_data_list(data),

@@ -28,7 +28,8 @@ def test():
         r.push(e)
 
     d = RBDataLoader(r, batch_size=4, shuffle=True)
-    m = PrimModel()
+    m = PrimModel(300)
+    m.set_reference(torch.rand(128, 128))
     m(next(iter(d))['src'])
 
     #p = Polar()
