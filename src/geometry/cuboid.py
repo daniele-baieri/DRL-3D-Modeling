@@ -43,7 +43,6 @@ class Cuboid(Primitive):
     @classmethod
     def aggregate(cls, C: List[Cuboid]) -> Data:
         data = [c.to_geom_data() for c in C]
-        """
         vertices = [d.pos for d in data]
         edges, offset = [], 0
         for d in data:
@@ -53,6 +52,5 @@ class Cuboid(Primitive):
             pos=torch.cat(vertices),
             edge_index=torch.cat(edges, dim=1)
         )
-        """
-        return Batch.from_data_list(data)
+        #return Batch.from_data_list(data)
 

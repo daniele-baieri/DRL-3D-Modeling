@@ -1,16 +1,41 @@
 import torch
+from torch.utils.data import DataLoader
 from agents.prim.prim_state import PrimState
 from agents.prim.prim_action import PrimAction
 from agents.prim.prim_model import PrimModel
 from agents.prim.prim_reward import PrimReward
 from agents.environment import Environment
 from agents.experience import Experience
-from agents.replay_buffer import ReplayBuffer
+from agents.replay_buffer import ReplayBuffer, RBDataLoader
 from geometry.cuboid import Cuboid
+
+from torch_geometric.transforms import Polar
 
 
 def test():
     
+    PrimState.init_state_space(4, 2)
+    PrimAction.init_action_space(64, 2, [0.5, 1])
+    a1 = PrimAction(0, vert=0, axis=0, slide=0.5)
+    
+    #r = PrimReward(0.5, 0.5)
+    #env = Environment(PrimAction.ground(), r)
+    s = PrimState.initial()
+    e = Experience(s, a1(s), a1, 5.0)
+
+    r = ReplayBuffer(10)
+    for _ in range(8):
+        r.push(e)
+
+    d = RBDataLoader(r, batch_size=4, shuffle=True)
+    m = PrimModel()
+    m(next(iter(d))['src'])
+
+    #p = Polar()
+    #x = next(iter(d))['src'][0].to_geom_data()
+    #print(x.pos.size(1))
+    #print(x.pos.dim())
+
     """
     verts1 = torch.FloatTensor([[1,2,3],[4,5,6]])
     verts2 = torch.ones(2,3)
@@ -48,6 +73,9 @@ def test():
         r.push(e)
         print(len(r))
 
+    d = DataLoader(r, collate_fn=collate, batch_size=2, shuffle=True)
+    print(next(iter(d)))
+    
     print(s)
     print(a1)
     print(e)

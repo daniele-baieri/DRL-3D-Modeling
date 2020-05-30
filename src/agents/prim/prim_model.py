@@ -1,11 +1,13 @@
 import sys
 import torch
+from typing import List
 
-from torch_geometric.data import Data
+from torch_geometric.data import Data, Batch
 from torch_geometric.transforms import Polar
 from torch_geometric.nn import GMMConv, BatchNorm
 
 from agents.base_model import BaseModel
+from agents.prim.prim_state import PrimState
 
 
 class PrimModel(BaseModel):
@@ -18,13 +20,16 @@ class PrimModel(BaseModel):
          
         # 2. State processing stream
         # A GMM convolutional network. Actually processing the batched input to the network.
-        self.__polar = Polar(cat=False)
-
+        # self.__conv3D1 = GMMConv()
 
         # 3. Step processing stream
         # Trivial FC layer. Also, no batching (follows current episode) 
-        
 
-    def forward(self, state_geom: Data) -> torch.Tensor:
-        pos, edges = state_geom.pos, state_geom.edge_index
-        pseudo = self.__polar(state_geom)
+
+    def forward(self, state_batch: Batch) -> torch.Tensor:
+
+        pos = state_batch.pos
+        edges = state_batch.edge_index
+        pseudo = state_batch.edge_attr
+
+        print(pos.shape, edges.shape, pseudo.shape)

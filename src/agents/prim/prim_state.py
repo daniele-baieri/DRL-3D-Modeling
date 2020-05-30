@@ -60,7 +60,7 @@ class PrimState(State):
                 torch.tensor([
                     [x * step for x in tup], 
                     [x * step + step for x in tup]
-                ])
+                ], dtype=torch.float)
             )
             for tup in product(r, repeat=3)
         ]

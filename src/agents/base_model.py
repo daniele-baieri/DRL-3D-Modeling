@@ -5,6 +5,7 @@ from torch.nn import Module
 class BaseModel(Module):
 
     def __init__(self):
+        super(BaseModel, self).__init__()
         self._ref = None
         self._step = -1
         self._episode_len = -1
