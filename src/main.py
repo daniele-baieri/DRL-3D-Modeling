@@ -1,4 +1,6 @@
+import time
 import torch
+
 from torch.utils.data import DataLoader
 from agents.prim.prim_state import PrimState
 from agents.prim.prim_action import PrimAction
@@ -8,8 +10,6 @@ from agents.environment import Environment
 from agents.experience import Experience
 from agents.replay_buffer import ReplayBuffer, RBDataLoader
 from geometry.cuboid import Cuboid
-
-from torch_geometric.transforms import Polar
 
 
 def test():
@@ -27,15 +27,13 @@ def test():
     for _ in range(8):
         r.push(e)
 
-    d = RBDataLoader(r, batch_size=4, shuffle=True)
-    m = PrimModel(300)
+    d = RBDataLoader(r, 5, batch_size=4)
+    m = PrimModel(300, 650)
     m.set_reference(torch.rand(128, 128))
-    m(next(iter(d))['src'])
-
-    #p = Polar()
-    #x = next(iter(d))['src'][0].to_geom_data()
-    #print(x.pos.size(1))
-    #print(x.pos.dim())
+    b = next(iter(d))['src']
+    t1 = time.time()
+    m(b)
+    print("Forward time: " + str(time.time() - t1))
 
     """
     verts1 = torch.FloatTensor([[1,2,3],[4,5,6]])
@@ -99,6 +97,8 @@ def test():
     
     
 if __name__ == "__main__":
+    t = time.time()
     test()
+    print("Test time: " + str(time.time() - t))
 
 

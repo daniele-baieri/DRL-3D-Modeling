@@ -3,7 +3,7 @@ import torch
 from math import pi as PI
 from typing import List, Dict
 
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader, Dataset, RandomSampler
 from torch_geometric.data import Data, Batch
 
 from agents.experience import Experience
@@ -64,10 +64,14 @@ class ReplayBuffer(Dataset):
 
 class RBDataLoader(DataLoader):
 
-    def __init__(self, dataset: ReplayBuffer, shuffle: bool, batch_size: int):
+    def __init__(self, dataset: ReplayBuffer, ep_len: int, batch_size: int=1):
         super(RBDataLoader, self).__init__(
             dataset, 
-            shuffle=shuffle, 
             batch_size=batch_size, 
-            collate_fn=collate
+            collate_fn=collate,
+            sampler=RandomSampler(
+                dataset, 
+                replacement=True, 
+                num_samples=ep_len * batch_size
+            )
         )
