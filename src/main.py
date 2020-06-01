@@ -1,7 +1,9 @@
-import time
+import time, math
 import torch
 
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
+from torch.optim import Adam
+
 from agents.prim.prim_state import PrimState
 from agents.prim.prim_action import PrimAction
 from agents.prim.prim_model import PrimModel
@@ -9,11 +11,58 @@ from agents.prim.prim_reward import PrimReward
 from agents.environment import Environment
 from agents.experience import Experience
 from agents.replay_buffer import ReplayBuffer, RBDataLoader
+from agents.double_dqn_trainer import DoubleDQNTrainer
 from geometry.cuboid import Cuboid
 
 
+class TestDataset(Dataset):
+
+    def __init__(self, num_rand: int, size: int):
+        self.data = [torch.rand(size, size) for _ in range(num_rand)]
+
+    def __len__(self) -> int:
+        return len(self.data)
+
+    def __getitem__(self, idx: int) -> torch.Tensor:
+        return self.data[idx]
+
+
 def test():
+
+    PrimState.init_state_space(3, 2)
+    prims = int(math.pow(PrimState.num_primitives, 3))
+    PrimAction.init_action_space(prims, 2, [-0.5, 0.5])
+
+    R = PrimReward(0.1, 0.001)
+    env = Environment(PrimAction.ground(), R)
+
+    online = PrimModel(10, PrimAction.act_space_size)
+    target = PrimModel(online.get_episode_len(), PrimAction.act_space_size)
+    target.load_state_dict(online.state_dict())
+    target.eval()
     
+    opt = Adam(online.parameters(), 0.01)
+    rep = ReplayBuffer(10)
+    rb = RBDataLoader(rep, online.get_episode_len(), 4)
+
+    trainer = DoubleDQNTrainer(online, target, env, opt, rb, 0.999)
+
+    ds = TestDataset(10, 120)
+
+    t1 = time.time()
+    trainer.train(ds)
+    print("Training time: " + str(time.time() - t1))
+
+    
+    
+if __name__ == "__main__":
+    t = time.time()
+    test()
+    print("Test time: " + str(time.time() - t))
+
+
+    # old tests
+    """
     PrimState.init_state_space(4, 2)
     PrimAction.init_action_space(64, 2, [0.5, 1])
     a1 = PrimAction(0, vert=0, axis=0, slide=0.5)
@@ -35,7 +84,6 @@ def test():
     m(b)
     print("Forward time: " + str(time.time() - t1))
 
-    """
     verts1 = torch.FloatTensor([[1,2,3],[4,5,6]])
     verts2 = torch.ones(2,3)
     prims = [
@@ -94,11 +142,3 @@ def test():
     PrimAction.init_action_space(27, 2, [-2, -1, 1, 2])
     print(len(PrimAction.ground()))
     """
-    
-    
-if __name__ == "__main__":
-    t = time.time()
-    test()
-    print("Test time: " + str(time.time() - t))
-
-

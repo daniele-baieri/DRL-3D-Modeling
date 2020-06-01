@@ -3,7 +3,6 @@ import torch
 from typing import List
 
 from torch.nn import Conv2d, ReLU, BatchNorm2d, MaxPool2d, Linear, ELU, Softmax
-#from torch.nn import ReLU
 
 from torch_geometric.data import Data, Batch
 from torch_geometric.transforms import Polar
@@ -87,9 +86,9 @@ class PrimModel(BaseModel):
         x_3 = self.relu(self.fc2(x_3))
         x_3 = x_3.repeat(batch_size, 1)
 
-        print(x_1.shape, x_2.shape, x_3.shape)
+        #print(x_1.shape, x_2.shape, x_3.shape)
 
         x = torch.cat([x_1, x_2, x_3], dim=1)
-        print(x.shape)
+        #print(x.shape)
         x = self.fc3(x)
         return self.softmax(x)

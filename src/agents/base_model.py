@@ -22,6 +22,9 @@ class BaseModel(Module):
     def get_step(self) -> int:
         return self._step
 
+    def zero_step(self) -> int:
+        self._step = 0
+
     def get_episode_len(self) -> int:
         return self._episode_len
 

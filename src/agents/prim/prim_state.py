@@ -25,11 +25,14 @@ class PrimState(State):
     def __repr__(self) -> str:
         return repr(self.__primitives)
 
-    def tensorize(self) -> torch.FloatTensor:
+    def __len__(self) -> int:
+        return len(self.__primitives)
+
+    def tensorize(self) -> torch.FloatTensor: # NOTE: this might just go to the trash
         if len(self.__primitives) == 0:
             return torch.empty(0)
         else:
-            return torch.stack(  #doubt about this shape: how do we want to process this? 
+            return torch.stack(
                 [x.get_pivots() for x in self.__primitives]
             )
 

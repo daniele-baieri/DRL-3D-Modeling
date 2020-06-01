@@ -13,6 +13,7 @@ from agents.action import Action
 
 class PrimAction(Action):
 
+    act_space_size = 0
     primitives = 0
     vertices = 0
     slides = []
@@ -20,6 +21,7 @@ class PrimAction(Action):
     def __init__(self, prim: int, vert: int=None, slide: float=None, axis: int=None, delete: bool=False):
         assert prim >= 0 and prim < self.primitives 
 
+        self.__idx = -1
         self.__prim = prim
         self.__delete = delete
         if not delete:
@@ -49,6 +51,13 @@ class PrimAction(Action):
             prims[self.__prim].slide(self.__vert, self.__axis, self.__slide)
             return PrimState(prims)
 
+    def get_index(self) -> int:
+        return self.__idx
+
+    def set_index(self, idx: int) -> None:
+        assert idx in range(0, self.act_space_size)
+        self.__idx = idx
+
     @classmethod
     def init_action_space(cls, prims: int, verts: int, slides: List[float]) -> None:
         cls.primitives = prims
@@ -74,5 +83,7 @@ class PrimAction(Action):
             PrimAction(p, delete=True) 
             for p in range(cls.primitives)
         ])
+
+        cls.act_space_size = len(res)
 
         return res

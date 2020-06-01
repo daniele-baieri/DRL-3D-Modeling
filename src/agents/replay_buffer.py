@@ -29,13 +29,13 @@ def polar(data: Data, norm=True, max_val=None) -> Data:
 
 
 def collate(x: List[Experience]) -> Dict:
-    data = [polar(e.get_source().to_geom_data()) for e in x]
-    # if other data in experience needs encoding, do it here (unlikely)
+    curr = [polar(e.get_source().to_geom_data()) for e in x]
+    succ = [polar(e.get_destination().to_geom_data()) for e in x]
     return {
-        'src': Batch.from_data_list(data),
-        'dest': [e.get_destination() for e in x],
-        'act': [e.get_action() for e in x],
-        'r': [e.get_reward() for e in x]
+        'src': Batch.from_data_list(curr),
+        'dest': Batch.from_data_list(succ),
+        'act': torch.LongTensor([e.get_action().get_index() for e in x]),
+        'r': torch.FloatTensor([e.get_reward() for e in x])
     }
 
 
