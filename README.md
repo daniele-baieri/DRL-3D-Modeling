@@ -10,8 +10,12 @@ This work is based on [this paper](https://arxiv.org/abs/2003.12397) by Lin C., 
 
 ## Dependencies
 
+The training process requires the following modules:
+
 * PyTorch
 
 * PyTorch Geometric
 
 * TriMesh
+
+* Blender

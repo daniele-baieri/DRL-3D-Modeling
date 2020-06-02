@@ -12,6 +12,7 @@ from torch_geometric.transforms import FaceToEdge
 
 from trimesh import Trimesh
 from trimesh.creation import box
+from trimesh.repair import broken_faces
 
 
 class Cuboid(Primitive):
@@ -26,14 +27,8 @@ class Cuboid(Primitive):
         new_center = (v[1,:] + v[0,:]) / 2.0
         T = torch.eye(4)
         T[[0,1,2],3] = new_center
-        self.__shape = box(
-            extents=v[0,:]-v[1,:],
-            transform=T
-        )
-        #self.__shape.show()
-        #print(self.__shape.center_mass)
-        #print(self.__shape.centroid)
-        #print(self.__shape.vertices)
+        self.__shape = box(extents=v[0,:]-v[1,:], transform=T)
+        #self.__shape.invert()
 
     def __repr__(self) -> str:
         return repr(self.__vert.tolist())

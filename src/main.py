@@ -30,10 +30,10 @@ class TestDataset(Dataset):
 def test():
 
     PrimState.init_state_space(4, 2)
-    '''
+    
     prims = int(math.pow(PrimState.num_primitives, 3))
-    PrimAction.init_action_space(prims, 2, [-0.5, 0.5])
-
+    PrimAction.init_action_space(prims, 2, [0.5, 1.0, 1.5])
+    
     R = PrimReward(0.1, 0.001)
     env = Environment(PrimAction.ground(), R)
 
@@ -53,19 +53,28 @@ def test():
     t1 = time.time()
     trainer.train(ds)
     print("Training time: " + str(time.time() - t1))
-    '''
-    PrimState.initial().meshify().show()
 
     
     
 if __name__ == "__main__":
-    #c = Cuboid(torch.FloatTensor([[1,2,3],[4,5,6]]))
-    #c1 = c.slide(0, 1, 2.5)
-    #print(c1.to_geom_data())
-    #m = c.meshify()
-    #m.show()
+
+    PrimState.init_state_space(3, 2)
+    prims = int(math.pow(PrimState.num_primitives, 3))
+    PrimAction.init_action_space(prims, 2, [0.5, 1.0, 1.5])
+    s = PrimState.initial()
+    a1 = PrimAction(0, vert=0, axis=0, slide=1.5)
+    a2 = PrimAction(1, vert=0, axis=0, slide=1.0)
+    a3 = PrimAction(2, vert=0, axis=0, slide=0.5)
+    s = a1(a2(a3(s)))
     t = time.time()
-    test()
+    m = s.meshify()
+    print("Meshify time: " + str(time.time() - t))
+    m.show()
+    print(len(m.vertices), len(m.faces))
+    print(m.volume)
+
+    t = time.time()
+    #test()
     print("Test time: " + str(time.time() - t))
 
 

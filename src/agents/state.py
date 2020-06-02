@@ -14,6 +14,3 @@ class State:
 
     def to_geom_data(self) -> Data:
         raise NotImplementedError
-
-    def meshify(self) -> Trimesh:
-        raise NotImplementedError

@@ -1,5 +1,5 @@
 from __future__ import annotations
-import copy
+import copy, time
 import torch
 from typing import List
 from itertools import product
@@ -9,8 +9,11 @@ from agents.state import State
 
 from torch_geometric.data import Data
 
+import trimesh.visual
 from trimesh import Trimesh
-from trimesh.boolean import union
+from trimesh.boolean import union, intersection
+from trimesh.scene.scene import Scene
+from trimesh.repair import broken_faces, fill_holes
 
 
 class PrimState(State):
@@ -50,7 +53,10 @@ class PrimState(State):
 
     def meshify(self) -> Trimesh:
         if self.__mesh_cache is None:
-            self.__mesh_cache = union([c.get_mesh() for c in self.__primitives])
+            t = time.time()
+            self.__mesh_cache = union([c.get_mesh() for c in self.__primitives], engine='scad')
+            #print(broken_faces(self.__mesh_cache, color=[255,0,0,255]))
+            print("Union time: "+str(time.time() - t))
         return self.__mesh_cache
 
     def get_primitives(self) -> List[Cuboid]:
