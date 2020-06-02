@@ -1,5 +1,8 @@
-# Course Project for the Deep Learning and Applied AI course (Computer Science Master Degree @ La Sapienza Università di Roma, 2020)
-Author: Daniele Baieri
+# Course Project for the Deep Learning and Applied AI course 
+
+## Computer Science Master Degree @ La Sapienza Università di Roma, 2020
+
+### Author: Daniele Baieri
 
 ## Abstract
 
@@ -7,4 +10,8 @@ This work is based on [this paper](https://arxiv.org/abs/2003.12397) by Lin C., 
 
 ## Dependencies
 
+* PyTorch
+
 * PyTorch Geometric
+
+* TriMesh

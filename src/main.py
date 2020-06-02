@@ -29,7 +29,7 @@ class TestDataset(Dataset):
 
 def test():
 
-    PrimState.init_state_space(3, 2)
+    PrimState.init_state_space(4, 2)
     prims = int(math.pow(PrimState.num_primitives, 3))
     PrimAction.init_action_space(prims, 2, [-0.5, 0.5])
 
@@ -56,8 +56,11 @@ def test():
     
     
 if __name__ == "__main__":
+    c = Cuboid(torch.FloatTensor([[1,2,3],[4,5,6]]))
+    c.meshify()
+
     t = time.time()
-    test()
+    #test()
     print("Test time: " + str(time.time() - t))
 
 

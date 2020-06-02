@@ -35,17 +35,19 @@ class PrimAction(Action):
 
     def __repr__(self) -> str:
         if self.__delete:
-            return '<DEL primitive ' + str(self.__prim) + '>'
+            return 'DEL(p=' + str(self.__prim) + ')'
         else:
-            return '<SLIDE vertex ' + str(self.__vert) + \
-                ' of primitive ' + str(self.__prim) + \
-                ' on axis ' + str(self.__axis) + \
-                ' of amount ' + str(self.__slide) + '>'
+            return 'SLIDE(v=' + str(self.__vert) + \
+                ', p=' + str(self.__prim) + \
+                ', a=' + str(self.__axis) + \
+                ', m=' + str(self.__slide) + ')'
 
     def _apply(self, s: PrimState) -> PrimState:
         prims = s.get_primitives()
+        if prims[self.__prim] is None:
+            return s
         if self.__delete:
-            prims.pop(self.__prim)
+            prims[self.__prim] = None
             return PrimState(prims)
         else:
             prims[self.__prim].slide(self.__vert, self.__axis, self.__slide)

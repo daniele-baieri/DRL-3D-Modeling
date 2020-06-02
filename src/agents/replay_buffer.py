@@ -1,4 +1,4 @@
-import torch
+import torch, time
 
 from math import pi as PI
 from typing import List, Dict
@@ -31,12 +31,13 @@ def polar(data: Data, norm=True, max_val=None) -> Data:
 def collate(x: List[Experience]) -> Dict:
     curr = [polar(e.get_source().to_geom_data()) for e in x]
     succ = [polar(e.get_destination().to_geom_data()) for e in x]
-    return {
+    res =  {
         'src': Batch.from_data_list(curr),
         'dest': Batch.from_data_list(succ),
         'act': torch.LongTensor([e.get_action().get_index() for e in x]),
         'r': torch.FloatTensor([e.get_reward() for e in x])
     }
+    return res
 
 
 class ReplayBuffer(Dataset):

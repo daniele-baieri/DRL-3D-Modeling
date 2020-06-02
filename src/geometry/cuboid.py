@@ -1,9 +1,14 @@
 from __future__ import annotations
-import torch
+import torch, time
+
 from itertools import product
 from typing import List
+
 from geometry.primitive import Primitive
+
 from torch_geometric.data import Data, Batch
+
+from trimesh import Trimesh
 
 
 class Cuboid(Primitive):
@@ -40,9 +45,17 @@ class Cuboid(Primitive):
 
         return Data(pos=vertices, edge_index=edges.t().contiguous())
 
+    def meshify(self) -> Trimesh:
+        vertices = torch.stack([ #enumerate all 8 vertices from V and V'
+            self.__vert[c,[0,1,2]]
+            for c in product([0,1], repeat=3)
+        ]).float()
+
+        print(vertices)
+
     @classmethod
-    def aggregate(cls, C: List[Cuboid]) -> Data:
-        data = [c.to_geom_data() for c in C]
+    def aggregate(cls, C: List[Cuboid]) -> Data: #0.1s for n=3, 0.25 for n=4
+        data = [c.to_geom_data() for c in C if c is not None] #NOTE: check that this is right
         vertices = [d.pos for d in data]
         edges, offset = [], 0
         for d in data:

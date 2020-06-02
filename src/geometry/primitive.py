@@ -1,5 +1,7 @@
 import typing
 
+from trimesh import Trimesh
+
 
 class Primitive:
 
@@ -12,4 +14,7 @@ class Primitive:
         @param axis: the axis along which to slide vertex 'vertex'
         @param amount: the additive factor of which to slide 'vertex' on 'axis'
         """
+        raise NotImplementedError
+
+    def meshify(self) -> Trimesh:
         raise NotImplementedError

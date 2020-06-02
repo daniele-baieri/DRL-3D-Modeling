@@ -9,6 +9,9 @@ from agents.state import State
 
 from torch_geometric.data import Data
 
+from trimesh import Trimesh
+from trimesh.boolean import union
+
 
 class PrimState(State):
 
@@ -21,6 +24,7 @@ class PrimState(State):
     def __init__(self, prim: List[Cuboid]):
         #assert len(prim) == pow(self.num_primitives, 3)
         self.__primitives = prim
+        self.__geom_cache = None
 
     def __repr__(self) -> str:
         return repr(self.__primitives)
@@ -28,6 +32,7 @@ class PrimState(State):
     def __len__(self) -> int:
         return len(self.__primitives)
 
+    '''
     def tensorize(self) -> torch.FloatTensor: # NOTE: this might just go to the trash
         if len(self.__primitives) == 0:
             return torch.empty(0)
@@ -35,9 +40,16 @@ class PrimState(State):
             return torch.stack(
                 [x.get_pivots() for x in self.__primitives]
             )
+    '''
 
     def to_geom_data(self) -> Data:
-        return Cuboid.aggregate(self.__primitives)
+        if self.__geom_cache is None:
+            self.__geom_cache = Cuboid.aggregate(self.__primitives)
+        return self.__geom_cache
+
+    def meshify(self) -> Trimesh:
+        return union([c.meshify() for c in self.__primitives])
+
 
     def get_primitives(self) -> List[Cuboid]:
         return copy.deepcopy(self.__primitives)

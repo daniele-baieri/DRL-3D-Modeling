@@ -19,6 +19,7 @@ class PrimReward(Reward):
         return iou + iou_sum + parsimony
 
     def __iou(self, s: PrimState) -> float:
+        # This is a complex method. First approach: compute intersection and union of meshes.
         #raise NotImplementedError
         return 0.0
 
