@@ -50,7 +50,8 @@ class PrimAction(Action):
             prims[self.__prim] = None
             return PrimState(prims)
         else:
-            prims[self.__prim].slide(self.__vert, self.__axis, self.__slide)
+            c = prims[self.__prim]
+            prims[self.__prim] = c.slide(self.__vert, self.__axis, self.__slide)
             return PrimState(prims)
 
     def get_index(self) -> int:

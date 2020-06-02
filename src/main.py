@@ -30,6 +30,7 @@ class TestDataset(Dataset):
 def test():
 
     PrimState.init_state_space(4, 2)
+    '''
     prims = int(math.pow(PrimState.num_primitives, 3))
     PrimAction.init_action_space(prims, 2, [-0.5, 0.5])
 
@@ -52,15 +53,19 @@ def test():
     t1 = time.time()
     trainer.train(ds)
     print("Training time: " + str(time.time() - t1))
+    '''
+    PrimState.initial().meshify().show()
 
     
     
 if __name__ == "__main__":
-    c = Cuboid(torch.FloatTensor([[1,2,3],[4,5,6]]))
-    c.meshify()
-
+    #c = Cuboid(torch.FloatTensor([[1,2,3],[4,5,6]]))
+    #c1 = c.slide(0, 1, 2.5)
+    #print(c1.to_geom_data())
+    #m = c.meshify()
+    #m.show()
     t = time.time()
-    #test()
+    test()
     print("Test time: " + str(time.time() - t))
 
 

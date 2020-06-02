@@ -25,6 +25,7 @@ class PrimState(State):
         #assert len(prim) == pow(self.num_primitives, 3)
         self.__primitives = prim
         self.__geom_cache = None
+        self.__mesh_cache = None
 
     def __repr__(self) -> str:
         return repr(self.__primitives)
@@ -48,8 +49,9 @@ class PrimState(State):
         return self.__geom_cache
 
     def meshify(self) -> Trimesh:
-        return union([c.meshify() for c in self.__primitives])
-
+        if self.__mesh_cache is None:
+            self.__mesh_cache = union([c.get_mesh() for c in self.__primitives])
+        return self.__mesh_cache
 
     def get_primitives(self) -> List[Cuboid]:
         return copy.deepcopy(self.__primitives)
