@@ -6,3 +6,4 @@
 *.vpp.lck
 *.vpp.bak*
 .vscode/
+*ModelNet*

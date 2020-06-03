@@ -81,6 +81,8 @@ class PrimAction(Action):
             )
         ])
         
+        cls.slide_actions = len(res)
+
         #ground deleting actions
         res.extend([
             PrimAction(p, delete=True) 

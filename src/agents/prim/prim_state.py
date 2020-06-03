@@ -54,7 +54,10 @@ class PrimState(State):
     def meshify(self) -> Trimesh:
         if self.__mesh_cache is None:
             t = time.time()
-            self.__mesh_cache = union([c.get_mesh() for c in self.__primitives], engine='scad')
+            self.__mesh_cache = union([
+                c.get_mesh() for c in self.__primitives if c is not None
+                ], engine='scad'
+            )
             #print(broken_faces(self.__mesh_cache, color=[255,0,0,255]))
             print("Union time: "+str(time.time() - t))
         return self.__mesh_cache

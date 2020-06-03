@@ -13,6 +13,7 @@ from agents.experience import Experience
 from agents.replay_buffer import ReplayBuffer, RBDataLoader
 from agents.double_dqn_trainer import DoubleDQNTrainer
 from geometry.cuboid import Cuboid
+from geometry.shape_dataset import ShapeDataset
 
 
 class TestDataset(Dataset):
@@ -58,14 +59,15 @@ def test():
     
 if __name__ == "__main__":
 
-    PrimState.init_state_space(3, 2)
+    PrimState.init_state_space(4, 2)
     prims = int(math.pow(PrimState.num_primitives, 3))
     PrimAction.init_action_space(prims, 2, [0.5, 1.0, 1.5])
     s = PrimState.initial()
     a1 = PrimAction(0, vert=0, axis=0, slide=1.5)
     a2 = PrimAction(1, vert=0, axis=0, slide=1.0)
     a3 = PrimAction(2, vert=0, axis=0, slide=0.5)
-    s = a1(a2(a3(s)))
+    a4 = PrimAction(8, delete=True)
+    s = a1(a2(a3(a4(s))))
     t = time.time()
     m = s.meshify()
     print("Meshify time: " + str(time.time() - t))
@@ -76,6 +78,7 @@ if __name__ == "__main__":
     t = time.time()
     #test()
     print("Test time: " + str(time.time() - t))
+    
 
 
     # old tests

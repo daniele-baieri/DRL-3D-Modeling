@@ -30,6 +30,9 @@ class DoubleDQNTrainer:
         self.__rl_buf = buf
         self.__gamma = disc_fact
         self.__loss = SmoothL1Loss()
+        
+    def imitation_warmup(self) -> None:
+        raise NotImplementedError
 
     def train(self, data: Dataset):
         
@@ -55,9 +58,6 @@ class DoubleDQNTrainer:
                 self.__online.step()
                 self.__target.step()
             self.__target.load_state_dict(self.__online.state_dict())
-
-    def warmup_il(self) -> None:
-        raise NotImplementedError
 
     def optimize_model(self) -> None:
         exps = next(iter(self.__rl_buf))
