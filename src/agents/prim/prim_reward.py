@@ -1,6 +1,11 @@
+from trimesh import Trimesh
+from trimesh.boolean import union, intersection
+
 from agents.reward import Reward
 from agents.state import State
 from agents.prim.prim_state import PrimState
+from agents.prim.prim_model import PrimModel
+from agents.base_model import BaseModel
 
 
 class PrimReward(Reward):
@@ -19,13 +24,23 @@ class PrimReward(Reward):
         return iou + iou_sum + parsimony
 
     def __iou(self, s: PrimState) -> float:
-        # This is a complex method. First approach: compute intersection and union of meshes.
-        #raise NotImplementedError
-        return 0.0
+        # NOTE: this may be *VERY* slow. If it is infeasible, turn to voxels
+        target = BaseModel.get_model()
+        curr = s.meshify()
+        return self.__compute_iou(target, curr)
 
     def __iou_sum(self, s: PrimState) -> float:
-        #raise NotImplementedError
-        return 0.0
+        # NOTE: this may be *EVEN SLOWER*.
+        P = s.get_primitives()
+        target = BaseModel.get_model()
+        res = sum(P, lambda c: self.__compute_iou(c.get_mesh(), target))
+        return res / len(P)
 
     def __parsimony(self, s: PrimState) -> float:
-        return len(s)
+        P = PrimState.num_primitives
+        return P - len(s)
+
+    def __compute_iou(self, m1: Trimesh, m2: Trimesh) -> float:
+        v_int = intersection([m1, m2], engine='scad').volume
+        v_union = union([m1, m2], engine='scad').volume
+        return v_int / v_union

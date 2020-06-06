@@ -78,8 +78,6 @@ if __name__ == "__main__":
     t = time.time()
     #test()
     print("Test time: " + str(time.time() - t))
-    
-
 
     # old tests
     """

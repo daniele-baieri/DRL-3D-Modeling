@@ -7,3 +7,5 @@
 *.vpp.bak*
 .vscode/
 *ModelNet*
+*ShapeNet*
+*.zip

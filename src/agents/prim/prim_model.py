@@ -61,7 +61,7 @@ class PrimModel(BaseModel):
 
         batch_size = state_batch.num_graphs
 
-        x_1 = self.get_reference().unsqueeze(0).unsqueeze(1)
+        x_1 = BaseModel.get_reference().unsqueeze(0).unsqueeze(1)
         x_1 = self.conv1(x_1)
         x_1 = self.relu(self.flatbn1(self.pool1(x_1)))
         x_1 = self.conv2(x_1)

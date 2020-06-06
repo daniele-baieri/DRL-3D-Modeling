@@ -59,7 +59,7 @@ class PrimState(State):
                 ], engine='scad'
             )
             #print(broken_faces(self.__mesh_cache, color=[255,0,0,255]))
-            print("Union time: "+str(time.time() - t))
+            #print("Union time: "+str(time.time() - t))
         return self.__mesh_cache
 
     def get_primitives(self) -> List[Cuboid]:
