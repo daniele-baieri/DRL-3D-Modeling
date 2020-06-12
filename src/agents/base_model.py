@@ -1,7 +1,8 @@
 import torch
 import trimesh
-from trimesh import Trimesh
+#from trimesh import Trimesh
 from torch.nn import Module
+from torch_geometric.data import Data
 
 
 class BaseModel(Module):
@@ -13,7 +14,7 @@ class BaseModel(Module):
         self._episode_len = -1
 
     @classmethod
-    def new_episode(cls, new_ref: torch.FloatTensor, new_model: Trimesh) -> None:
+    def new_episode(cls, new_ref: torch.FloatTensor, new_model: Data) -> None:
         cls._ref = new_ref
         cls._model = new_model
 
@@ -22,8 +23,8 @@ class BaseModel(Module):
         return cls._ref#.clone().detach()
 
     @classmethod
-    def get_model(self) -> Trimesh:
-        return self._model
+    def get_model(cls) -> torch.LongTensor:
+        return cls._model
 
     def step(self) -> None:
         self._step += 1

@@ -1,8 +1,13 @@
 import time, math
 import torch
+import trimesh
 
 from torch.utils.data import DataLoader, Dataset
 from torch.optim import Adam
+
+from torch_geometric.utils import to_trimesh
+
+from trimesh.repair import fix_inversion, fix_normals, fix_winding
 
 from agents.prim.prim_state import PrimState
 from agents.prim.prim_action import PrimAction
@@ -12,10 +17,13 @@ from agents.environment import Environment
 from agents.experience import Experience
 from agents.replay_buffer import ReplayBuffer, RBDataLoader
 from agents.double_dqn_trainer import DoubleDQNTrainer
+from agents.base_model import BaseModel
+
 from geometry.cuboid import Cuboid
 from geometry.shape_dataset import ShapeDataset
 
 
+'''
 class TestDataset(Dataset):
 
     def __init__(self, num_rand: int, size: int):
@@ -54,26 +62,39 @@ def test():
     t1 = time.time()
     trainer.train(ds)
     print("Training time: " + str(time.time() - t1))
-
+'''
     
     
 if __name__ == "__main__":
 
-    PrimState.init_state_space(4, 2)
-    prims = int(math.pow(PrimState.num_primitives, 3))
-    PrimAction.init_action_space(prims, 2, [0.5, 1.0, 1.5])
+    print("Begin")
+    PrimState.init_state_space(4, 64)
+    PrimAction.init_action_space(PrimState.num_primitives, 2, [-0.1, -0.25, 0.1, 0.25])
     s = PrimState.initial()
-    a1 = PrimAction(0, vert=0, axis=0, slide=1.5)
-    a2 = PrimAction(1, vert=0, axis=0, slide=1.0)
-    a3 = PrimAction(2, vert=0, axis=0, slide=0.5)
+    print("Initialized")
+    a1 = PrimAction(0, vert=0, axis=0, slide=0.25)
+    a2 = PrimAction(1, vert=0, axis=0, slide=0.1)
+    a3 = PrimAction(2, vert=1, axis=1, slide=0.25)
     a4 = PrimAction(8, delete=True)
-    s = a1(a2(a3(a4(s))))
+    a5 = PrimAction(0, vert=0, axis=1, slide=0.25)
+    s1 = a1(a2(a3(a4(a5(s)))))
+    print("Computed successor")
+
+    D = ShapeDataset('/home/bayo/Documents/CS1920/DLAI-s2-2020/project/data/ShapeNet', categories=['rifle'])
+    ref = torch.rand(2,2)
+    M = next(iter(D))['mesh']
+
+    #print(M.shape)
+    #print(s1.voxelize(64).shape)
+
+    BaseModel.new_episode(ref, M)
+
+
+    #m = s.meshify()
+    R = PrimReward(0.2, 0.1)
     t = time.time()
-    m = s.meshify()
-    print("Meshify time: " + str(time.time() - t))
-    m.show()
-    print(len(m.vertices), len(m.faces))
-    print(m.volume)
+    print(R(s, s1))
+    print("Reward time: " + str(time.time() - t))
 
     t = time.time()
     #test()

@@ -1,26 +1,39 @@
 import torch
+import numpy
 import trimesh
 import warnings
+#import chardet
 
-from typing import List, Dict
+from typing import List, Dict, Union
 from pathlib import Path
+
+#from trimesh import Scene, Trimesh
+#from trimesh.voxel import VoxelGrid
+from trimesh.exchange.binvox import load_binvox#parse_binvox, voxel_from_binvox
 
 from torch.utils.data import Dataset
 
-from torch_geometric.datasets import ModelNet
+from torch_geometric.data import Data
+#from torch_geometric.io import read_obj
+from torch_geometric.transforms import FaceToEdge
+from torch_geometric.nn.pool import voxel_grid
+from torch_geometric.utils import to_trimesh, from_trimesh
+
 
 # Synset to Label mapping (for ShapeNet core classes)
-synset_to_label = {'04379243': 'table', '03211117': 'monitor', '04401088': 'phone',
-                '04530566': 'watercraft', '03001627': 'chair', '03636649': 'lamp',
-                '03691459': 'speaker', '02828884': 'bench', '02691156': 'plane',
-                '02808440': 'bathtub', '02871439': 'bookcase', '02773838': 'bag',
-                '02801938': 'basket', '02880940': 'bowl', '02924116': 'bus',
-                '02933112': 'cabinet', '02942699': 'camera', '02958343': 'car',
-                '03207941': 'dishwasher', '03337140': 'file', '03624134': 'knife',
-                '03642806': 'laptop', '03710193': 'mailbox', '03761084': 'microwave',
-                '03928116': 'piano', '03938244': 'pillow', '03948459': 'pistol',
-                '04004475': 'printer', '04099429': 'rocket', '04256520': 'sofa',
-                '04554684': 'washer', '04090263': 'rifle', '02946921': 'can'}
+synset_to_label = {
+    '04379243': 'table', '03211117': 'monitor', '04401088': 'phone',
+    '04530566': 'watercraft', '03001627': 'chair', '03636649': 'lamp',
+    '03691459': 'speaker', '02828884': 'bench', '02691156': 'plane',
+    '02808440': 'bathtub', '02871439': 'bookcase', '02773838': 'bag',
+    '02801938': 'basket', '02880940': 'bowl', '02924116': 'bus',
+    '02933112': 'cabinet', '02942699': 'camera', '02958343': 'car',
+    '03207941': 'dishwasher', '03337140': 'file', '03624134': 'knife',
+    '03642806': 'laptop', '03710193': 'mailbox', '03761084': 'microwave',
+    '03928116': 'piano', '03938244': 'pillow', '03948459': 'pistol',
+    '04004475': 'printer', '04099429': 'rocket', '04256520': 'sofa',
+    '04554684': 'washer', '04090263': 'rifle', '02946921': 'can'
+}
 
 # Label to Synset mapping (for ShapeNet core classes)
 label_to_synset = {v: k for k, v in synset_to_label.items()}
@@ -28,13 +41,15 @@ label_to_synset = {v: k for k, v in synset_to_label.items()}
 
 class ShapeDataset(Dataset):
 
-
-    def __init__(self, path: str, categories: List[str]=['chair'], train: bool=True, split: float=.8):
+    def __init__(self, path: str, categories: List[str]=['chair'], 
+                 train: bool=True, split: float=.8, voxel_grid_side: int=64):
         self.root = Path(path)
         self.paths = []
         self.synset_idxs = []
+        self.voxel_grid_side = voxel_grid_side
         self.synsets = self.__convert_categories(categories)
         self.labels = [synset_to_label[s] for s in self.synsets]
+        self.edge_transform = FaceToEdge(remove_faces=False)
 
         # loops through desired classes
         for i in range(len(self.synsets)):
@@ -61,15 +76,25 @@ class ShapeDataset(Dataset):
     def __len__(self) -> int:
         return len(self.paths)
 
-    def __getitem__(self, idx: int) -> Dict:
+    def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
         # return 3D shape (mesh) and reference
         # label = self.labels[self.synset_idxs[idx]]
-        obj_location = self.paths[idx] / 'model_normalized.obj'
-        mesh = trimesh.load(str(obj_location))
+        obj_location = self.paths[idx] / 'models/model_normalized.obj'
 
-        return {
-            'mesh': mesh, 'reference': None
-        }
+        # NOTE: I had to do this PYG -> Trimesh -> PYG because Trimesh's read_obj is childish
+        mesh = self.read_obj(obj_location)
+        # mesh = self.edge_transform(mesh)
+    
+        # NOTE: this should officially work
+        pitch = 2.0 / self.voxel_grid_side
+        voxels = to_trimesh(mesh).voxelized(pitch)
+        voxels = voxel_grid(
+            torch.from_numpy(voxels.points).float(), 
+            torch.zeros(len(voxels.points)), 
+            pitch, -1.0, 1.0 # NOTE: [-1, 1] since ShapeNet meshes are normalized 
+        )
+        
+        return {'mesh': voxels, 'reference': None}
 
     def __convert_categories(self, categories):
         assert categories is not None, 'List of categories empty'
@@ -77,3 +102,72 @@ class ShapeDataset(Dataset):
         if len(synsets) < len(categories):
             warnings.warn('Selected unavailable categories - skipped')
         return synsets
+
+    def read_obj(self, in_file):
+        vertices = []
+        faces = []
+
+        for k, v in self.__yield_file(in_file):
+            if k == 'v':
+                vertices.append(v)
+            elif k == 'f':
+                faces.append(v)
+
+        if not len(faces) or not len(vertices):
+            return None
+
+        pos = torch.tensor(vertices, dtype=torch.float)
+        face = torch.tensor(faces, dtype=torch.long).t().contiguous()
+
+        data = Data(pos=pos, face=face)
+
+        return data
+
+    def __yield_file(self, in_file):
+        f = open(in_file, 'r')
+        #f
+        buf = f.read()
+        #print(chardet.detect(buf))
+        f.close()
+        for b in buf.split('\n'):
+            if b.startswith('v '):
+                yield ['v', [float(x) for x in b.split(" ")[1:]]]
+            elif b.startswith('f '):
+                triangles = b.split(' ')[2:]
+                # -1 as .obj is base 1 but the Data class expects base 0 indices
+                yield ['f', [int(t.split("/")[0]) - 1 for t in triangles]]
+            else:
+                yield ['', ""]
+
+
+    '''
+    def __as_mesh(self, scene_or_mesh: Union[Trimesh, Scene]) -> Trimesh:
+        """
+        Convert a possible scene to a mesh.
+
+        If conversion occurs, the returned mesh has only vertex and face data.
+        """
+        if isinstance(scene_or_mesh, Scene):
+            if len(scene_or_mesh.geometry) == 0:
+                mesh = None  # empty scene
+            else:
+                # we lose texture information here
+                mesh = trimesh.util.concatenate(
+                    tuple(trimesh.Trimesh(vertices=g.vertices, faces=g.faces)
+                        for g in scene_or_mesh.geometry.values()))
+        else:
+            assert(isinstance(mesh, trimesh.Trimesh))
+            mesh = scene_or_mesh
+        return mesh
+    '''
+    '''
+    def __align_and_resize(self, voxels: VoxelGrid) -> None:
+        S = torch.cat((torch.from_numpy(voxels.scale.copy()).float(), torch.tensor([1.0])), 0) 
+        #print(S)
+        T = torch.diag(torch.pow(S, -1))
+        voxels.apply_transform(T)
+        T = torch.eye(4)
+        T[[0,1,2], -1] = -1 * torch.from_numpy(voxels.translation.copy()).float()
+        voxels.apply_transform(T)
+        #print(T)
+    '''
