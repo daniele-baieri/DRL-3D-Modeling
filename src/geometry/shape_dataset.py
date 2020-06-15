@@ -2,13 +2,12 @@ import torch
 import numpy
 import trimesh
 import warnings
+import numpy as np
 #import chardet
 
 from typing import List, Dict, Union
 from pathlib import Path
 
-#from trimesh import Scene, Trimesh
-#from trimesh.voxel import VoxelGrid
 from trimesh.exchange.binvox import load_binvox#parse_binvox, voxel_from_binvox
 
 from torch.utils.data import Dataset
@@ -83,18 +82,27 @@ class ShapeDataset(Dataset):
 
         # NOTE: I had to do this PYG -> Trimesh -> PYG because Trimesh's read_obj is childish
         mesh = self.read_obj(obj_location)
+        to_trimesh(mesh).show()
         # mesh = self.edge_transform(mesh)
     
         # NOTE: this should officially work
-        pitch = 2.0 / self.voxel_grid_side
-        voxels = to_trimesh(mesh).voxelized(pitch)
+        #mesh = to_trimesh(mesh)
+        # TODO: ^ transform so that the center is in [0,0] and the widest component has min = -1 and max = 1
+        #voxels = mesh.voxelized(pitch)
+        #voxels.show()
+
+        max_comp = torch.max(mesh.pos, dim=0)[0]
+        min_comp = torch.min(mesh.pos, dim=0)[0]
+        widest = torch.argmax(max_comp - min_comp, dim=0).item()
+        pitch = (max_comp[widest] - min_comp[widest]) / self.voxel_grid_side
         voxels = voxel_grid(
-            torch.from_numpy(voxels.points).float(), 
-            torch.zeros(len(voxels.points)), 
-            pitch, -1.0, 1.0 # NOTE: [-1, 1] since ShapeNet meshes are normalized 
+            mesh.pos,
+            #torch.from_numpy(mesh.pos).float(), 
+            torch.zeros(len(mesh.pos)), 
+            pitch, min_comp[widest], max_comp[widest] # NOTE: [-1, 1] since ShapeNet meshes are normalized 
         )
-        
-        return {'mesh': voxels, 'reference': None}
+        print(voxels.shape)
+        return {'mesh': voxels, 'reference': torch.rand((120, 120))}
 
     def __convert_categories(self, categories):
         assert categories is not None, 'List of categories empty'

@@ -13,6 +13,7 @@ from agents.prim.prim_state import PrimState
 from agents.prim.prim_action import PrimAction
 from agents.prim.prim_model import PrimModel
 from agents.prim.prim_reward import PrimReward
+from agents.prim.prim_expert import PrimExpert
 from agents.environment import Environment
 from agents.experience import Experience
 from agents.replay_buffer import ReplayBuffer, RBDataLoader
@@ -34,14 +35,12 @@ class TestDataset(Dataset):
 
     def __getitem__(self, idx: int) -> torch.Tensor:
         return self.data[idx]
-
+'''
 
 def test():
 
-    PrimState.init_state_space(4, 2)
-    
-    prims = int(math.pow(PrimState.num_primitives, 3))
-    PrimAction.init_action_space(prims, 2, [0.5, 1.0, 1.5])
+    PrimState.init_state_space(3, 64)
+    PrimAction.init_action_space(PrimState.num_primitives, 2, [-0.5, -0.3, 0.3, 0.5])
     
     R = PrimReward(0.1, 0.001)
     env = Environment(PrimAction.ground(), R)
@@ -54,54 +53,96 @@ def test():
     opt = Adam(online.parameters(), 0.01)
     rep = ReplayBuffer(10)
     rb = RBDataLoader(rep, online.get_episode_len(), 4)
+    exp = PrimExpert(R, env)
 
-    trainer = DoubleDQNTrainer(online, target, env, opt, rb, 0.999)
+    trainer = DoubleDQNTrainer(online, target, env, opt, exp, rb, 0.999)
 
-    ds = TestDataset(10, 120)
-
+    D = ShapeDataset('../data/ShapeNet', categories=['knife'])
     t1 = time.time()
-    trainer.train(ds)
+    trainer.reinforcement(D, PrimState.initial())
     print("Training time: " + str(time.time() - t1))
-'''
+
     
+def virtual_expert_modeling():
+    PrimState.init_state_space(3, 64)
+    PrimAction.init_action_space(PrimState.num_primitives, 2, [-2.0, -1.0, 1.0, 2.0])
+
+    R = PrimReward(0.1, 0.0001)
+    env = Environment(PrimAction.ground(), R)
+    exp = PrimExpert(R, env)
+
+    M = PrimModel(10, PrimAction.act_space_size)
+    D = ShapeDataset('../data/ShapeNet', categories=['rocket'])
+    episode = next(iter(D))
+    BaseModel.new_episode(episode['reference'], episode['mesh'])
+
+    current = PrimState.initial()
+
+    experiences = exp.get_action_sequence(current, 27 * 4)
+    actions = [e.get_action() for e in experiences]
+
+    for act in actions:
+        current = act(current)
+
+    print(len(current))
     
+    current.meshify().show()
+
+
+
 if __name__ == "__main__":
 
+    t = time.time()
+    virtual_expert_modeling()
+    print("Test time: " + str(time.time() - t))
+
+    # old tests
+    
+    '''
     print("Begin")
-    PrimState.init_state_space(4, 64)
-    PrimAction.init_action_space(PrimState.num_primitives, 2, [-0.1, -0.25, 0.1, 0.25])
+    PrimState.init_state_space(3, 64)
+    PrimAction.init_action_space(PrimState.num_primitives, 2, [0.3, 0.5])
     s = PrimState.initial()
     print("Initialized")
-    a1 = PrimAction(0, vert=0, axis=0, slide=0.25)
-    a2 = PrimAction(1, vert=0, axis=0, slide=0.1)
-    a3 = PrimAction(2, vert=1, axis=1, slide=0.25)
+    a1 = PrimAction(0, vert=0, axis=0, slide=0.3)
+    a2 = PrimAction(1, vert=0, axis=0, slide=0.5)
+    a3 = PrimAction(2, vert=1, axis=1, slide=0.3)
     a4 = PrimAction(8, delete=True)
-    a5 = PrimAction(0, vert=0, axis=1, slide=0.25)
+    a5 = PrimAction(0, vert=0, axis=1, slide=0.3)
     s1 = a1(a2(a3(a4(a5(s)))))
     print("Computed successor")
 
     D = ShapeDataset('/home/bayo/Documents/CS1920/DLAI-s2-2020/project/data/ShapeNet', categories=['rifle'])
-    ref = torch.rand(2,2)
-    M = next(iter(D))['mesh']
+    M = next(iter(D))
+    R = PrimReward(0.2, 0.01)
+    BaseModel.new_episode(M['reference'], M['mesh'])
 
+    print(R(s, s1))
+    '''
+    '''
     #print(M.shape)
-    #print(s1.voxelize(64).shape)
+    V = s.voxelize(cubes=True)
+    print(torch.unique(torch.cat(V), sorted=False).shape)
 
     BaseModel.new_episode(ref, M)
 
+    s1 = s
+    actions = [PrimAction(i, delete=True) for i in range(10)]
+    for act in actions:
+        s1 = act
 
     #m = s.meshify()
-    R = PrimReward(0.2, 0.1)
+    R = PrimReward(0.2, 0.01)
     t = time.time()
     print(R(s, s1))
     print("Reward time: " + str(time.time() - t))
-
-    t = time.time()
-    #test()
-    print("Test time: " + str(time.time() - t))
-
-    # old tests
+    '''
     """
+
+
+
+
+
     PrimState.init_state_space(4, 2)
     PrimAction.init_action_space(64, 2, [0.5, 1])
     a1 = PrimAction(0, vert=0, axis=0, slide=0.5)

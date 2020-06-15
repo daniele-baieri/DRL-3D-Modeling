@@ -61,6 +61,12 @@ class PrimAction(Action):
         assert idx in range(0, self.act_space_size)
         self.__idx = idx
 
+    def get_primitive(self) -> int:
+        return self.__prim
+
+    def is_delete(self) -> bool:
+        return self.__delete
+
     @classmethod
     def init_action_space(cls, prims: int, verts: int, slides: List[float]) -> None:
         cls.primitives = prims
@@ -70,6 +76,7 @@ class PrimAction(Action):
     @classmethod
     def ground(cls) -> List[PrimAction]:
         res = []
+
         #ground sliding actions
         res.extend([
             PrimAction(p, vert=v, slide=s, axis=a) 

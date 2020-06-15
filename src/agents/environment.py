@@ -28,5 +28,5 @@ class Environment:
         self.__current = s
 
     def get_action(self, idx: int) -> Action:
-        assert idx > 0
+        assert idx >= 0
         return self.__act_space[idx]

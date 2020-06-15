@@ -9,9 +9,7 @@ from agents.state import State
 
 from torch_geometric.data import Data
 from torch_geometric.nn.pool import voxel_grid
-#from torch_geometric.utils import from_trimesh, to_trimesh
 
-#import trimesh.visual
 from trimesh import Trimesh
 from trimesh.boolean import union
 
@@ -29,12 +27,14 @@ class PrimState(State):
         self.__primitives = prim
         self.__geom_cache = None
         self.__mesh_cache = None
+        self.__vox_list_cache = None
+        self.__vox_cache = None
 
     def __repr__(self) -> str:
         return repr(self.__primitives)
 
     def __len__(self) -> int:
-        return len(self.get_primitives())
+        return len(self.get_live_primitives())
 
     def to_geom_data(self) -> Data:
         if self.__geom_cache is None:
@@ -51,7 +51,12 @@ class PrimState(State):
         return self.__mesh_cache
 
     def voxelize(self, cubes: bool=False) -> Union[torch.LongTensor, List[torch.LongTensor]]:
-        prims = self.get_primitives()
+        if cubes and self.__vox_list_cache is not None:
+            return self.__vox_list_cache
+        elif not cubes and self.__vox_cache is not None:
+            return self.__vox_cache
+
+        prims = self.get_live_primitives()
         grid_side = self.voxel_grid_side
         voxel_side = self.voxel_side
 
@@ -66,23 +71,28 @@ class PrimState(State):
 
         if cubes:
             # NOTE: unique concatenation of all these voxel grids == (cubes == False)
-            return [
+            self.__vox_list_cache = [
                 torch.unique(
                     voxel_grid(
                         pc, torch.zeros(len(pc)), voxel_side, self.min_coord, self.max_coord
                     ), sorted=False
                 ) for pc in subdivisions
             ]
+            return self.__vox_list_cache
         else:
             sub_point_cloud = torch.cat(subdivisions)
             voxelgrid = voxel_grid(
                 sub_point_cloud, torch.zeros(len(sub_point_cloud)), 
                 voxel_side, self.min_coord, self.max_coord
             )
-            return torch.unique(voxelgrid, sorted=False)
+            self.__vox_cache = torch.unique(voxelgrid, sorted=False)
+            return self.__vox_cache
+
+    def get_live_primitives(self) -> List[Cuboid]:
+        return [c for c in self.__primitives if c is not None]
 
     def get_primitives(self) -> List[Cuboid]:
-        return [c for c in self.__primitives if c is not None]
+        return copy.deepcopy(self.__primitives)
 
     @classmethod
     def init_state_space(cls, prim: int, voxelization_grid: int) -> None:

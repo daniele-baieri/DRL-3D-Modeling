@@ -15,6 +15,8 @@ from agents.action import Action
 from agents.state import State
 from agents.expert import Expert
 
+from geometry.shape_dataset import ShapeDataset
+
 
 class DoubleDQNTrainer:
 
@@ -67,15 +69,13 @@ class DoubleDQNTrainer:
 
         raise NotImplementedError
 
-    def reinforcement(self, data: Dataset, initial_state: State):
+    def reinforcement(self, data: ShapeDataset, initial_state: State):
         
         self.__online.train()
 
         for episode in data:
             self.__env.set_state(initial_state)
-            BaseModel.new_episode(episode['mesh'], episode['reference'])
-            #self.__online.new_episode()
-            #self.__target.new_episode(episode['mesh'], episode['reference'])
+            BaseModel.new_episode(episode['reference'], episode['mesh'])
             self.__online.zero_step()
             self.__target.zero_step()
 
@@ -92,6 +92,10 @@ class DoubleDQNTrainer:
                 self.__online.step()
                 self.__target.step()
             self.__target.load_state_dict(self.__online.state_dict())
+
+    #def train():
+    #    imitation()
+    #    reinforcement()
 
     def optimize_model(self) -> None:
         exps = next(iter(self.__rl_buf))
