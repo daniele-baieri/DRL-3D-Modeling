@@ -64,19 +64,20 @@ def test():
 
     
 def virtual_expert_modeling():
-    PrimState.init_state_space(3, 64)
+    PrimState.init_state_space(3, 64) #weird result with different max_coord_abs
     PrimAction.init_action_space(PrimState.num_primitives, 2, [-2.0, -1.0, 1.0, 2.0])
 
-    R = PrimReward(0.1, 0.0001)
+    R = PrimReward(0.1, 0.01)
     env = Environment(PrimAction.ground(), R)
     exp = PrimExpert(R, env)
 
     M = PrimModel(10, PrimAction.act_space_size)
-    D = ShapeDataset('../data/ShapeNet', categories=['rocket'])
+    D = ShapeDataset('../data/ShapeNet', categories=['pistol'])
     episode = next(iter(D))
     BaseModel.new_episode(episode['reference'], episode['mesh'])
 
     current = PrimState.initial()
+    current.voxelize(cubes=True)
 
     experiences = exp.get_action_sequence(current, 27 * 4)
     actions = [e.get_action() for e in experiences]
@@ -97,12 +98,13 @@ if __name__ == "__main__":
     print("Test time: " + str(time.time() - t))
 
     # old tests
-    
-    '''
+
+    '''    
     print("Begin")
     PrimState.init_state_space(3, 64)
     PrimAction.init_action_space(PrimState.num_primitives, 2, [0.3, 0.5])
     s = PrimState.initial()
+    print(torch.max(s.voxelize()))
     print("Initialized")
     a1 = PrimAction(0, vert=0, axis=0, slide=0.3)
     a2 = PrimAction(1, vert=0, axis=0, slide=0.5)
@@ -117,7 +119,9 @@ if __name__ == "__main__":
     R = PrimReward(0.2, 0.01)
     BaseModel.new_episode(M['reference'], M['mesh'])
 
+    t = time.time()
     print(R(s, s1))
+    print(time.time() - t)
     '''
     '''
     #print(M.shape)

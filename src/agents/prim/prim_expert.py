@@ -21,10 +21,12 @@ class PrimExpert(Expert):
             A = self.__env.get_action(act)
             if A.get_primitive() != prim: # < unoptimized crap 
                 continue
+            #print(A)
             new = self.__reward(curr, A(curr))
             if best is None or new > best:
                 best = new
                 bestAct = A
+        print(best)
         return bestAct, best
 
     def get_action_sequence(self, s: PrimState, max_steps: int) -> List[Experience]:
@@ -37,6 +39,7 @@ class PrimExpert(Expert):
                 top = PrimAction.slide_actions if step <= max_steps//2 else PrimAction.act_space_size
                 A, r = self.poll(s, prim, top)
                 succ = A(curr)
+                assert len(succ) > 0
                 res.append(Experience(curr, succ, A, r))
                 curr = succ #test that this doesn't break anything (print the experience)
         return res

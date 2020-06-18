@@ -78,28 +78,33 @@ class ShapeDataset(Dataset):
     def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
         # return 3D shape (mesh) and reference
         # label = self.labels[self.synset_idxs[idx]]
-        obj_location = self.paths[idx] / 'models/model_normalized.obj'
+        obj_location = self.paths[idx] / 'models/model_normalized.solid.binvox'#model_normalized.obj'
 
-        # NOTE: I had to do this PYG -> Trimesh -> PYG because Trimesh's read_obj is childish
-        mesh = self.read_obj(obj_location)
-        to_trimesh(mesh).show()
+        #mesh = self.read_obj(obj_location)
+        #to_trimesh(mesh).show()
+        voxels = load_binvox(open(obj_location, 'rb'))
+        voxels.show()
+        voxels = torch.from_numpy(voxels.points)
+        #print(voxels.shape)
         # mesh = self.edge_transform(mesh)
     
-        # NOTE: this should officially work
+        # NOTE: this should officially work. spoiler: it didn't work
+
         #mesh = to_trimesh(mesh)
-        # TODO: ^ transform so that the center is in [0,0] and the widest component has min = -1 and max = 1
         #voxels = mesh.voxelized(pitch)
         #voxels.show()
 
-        max_comp = torch.max(mesh.pos, dim=0)[0]
-        min_comp = torch.min(mesh.pos, dim=0)[0]
-        widest = torch.argmax(max_comp - min_comp, dim=0).item()
-        pitch = (max_comp[widest] - min_comp[widest]) / self.voxel_grid_side
-        voxels = voxel_grid(
-            mesh.pos,
-            #torch.from_numpy(mesh.pos).float(), 
-            torch.zeros(len(mesh.pos)), 
-            pitch, min_comp[widest], max_comp[widest] # NOTE: [-1, 1] since ShapeNet meshes are normalized 
+        max_comp = torch.max(voxels)#torch.max(mesh.pos, dim=0)[0]
+        min_comp = torch.min(voxels)#torch.min(mesh.pos, dim=0)[0]
+        #print(max_comp, min_comp)
+        #widest = torch.argmax(max_comp - min_comp, dim=0).item()
+        pitch = (max_comp - min_comp) / (self.voxel_grid_side - 1)#(max_comp[widest] - min_comp[widest]) / self.voxel_grid_side
+        voxels = torch.unique(
+            voxel_grid(
+                voxels, torch.zeros(voxels.shape[0]), 
+                #torch.from_numpy(mesh.pos).float(), 
+                pitch, min_comp, max_comp#min_comp[widest], max_comp[widest] 
+            )
         )
         print(voxels.shape)
         return {'mesh': voxels, 'reference': torch.rand((120, 120))}

@@ -57,24 +57,26 @@ class PrimState(State):
             return self.__vox_cache
 
         prims = self.get_live_primitives()
-        grid_side = self.voxel_grid_side
-        voxel_side = self.voxel_side
 
         point_cloud = torch.cat([c.to_geom_data().pos for c in prims])
         min_xyz = torch.min(point_cloud, dim=0)[0]
         max_xyz = torch.max(point_cloud, dim=0)[0]
-        X_space = torch.linspace(min_xyz[0].item(), max_xyz[0].item(), grid_side+1)[:-1]
-        Y_space = torch.linspace(min_xyz[1].item(), max_xyz[1].item(), grid_side+1)[:-1]
-        Z_space = torch.linspace(min_xyz[2].item(), max_xyz[2].item(), grid_side+1)[:-1] 
+        X_space = torch.linspace(min_xyz[0], max_xyz[0], self.voxel_grid_side)#+1)[:-1]
+        Y_space = torch.linspace(min_xyz[1], max_xyz[1], self.voxel_grid_side)#+1)[:-1]
+        Z_space = torch.linspace(min_xyz[2], max_xyz[2], self.voxel_grid_side)#+1)[:-1] 
 
         subdivisions = [c.subdivide(X_space, Y_space, Z_space) for c in prims]
+
+        min_comp = torch.min(min_xyz)
+        max_comp = torch.max(max_xyz)
+        pitch = (max_comp - min_comp) / (self.voxel_grid_side - 1)
 
         if cubes:
             # NOTE: unique concatenation of all these voxel grids == (cubes == False)
             self.__vox_list_cache = [
                 torch.unique(
                     voxel_grid(
-                        pc, torch.zeros(len(pc)), voxel_side, self.min_coord, self.max_coord
+                        pc, torch.zeros(len(pc)), pitch, min_comp, max_comp
                     ), sorted=False
                 ) for pc in subdivisions
             ]
@@ -83,7 +85,7 @@ class PrimState(State):
             sub_point_cloud = torch.cat(subdivisions)
             voxelgrid = voxel_grid(
                 sub_point_cloud, torch.zeros(len(sub_point_cloud)), 
-                voxel_side, self.min_coord, self.max_coord
+                pitch, min_comp, max_comp
             )
             self.__vox_cache = torch.unique(voxelgrid, sorted=False)
             return self.__vox_cache
@@ -95,14 +97,15 @@ class PrimState(State):
         return copy.deepcopy(self.__primitives)
 
     @classmethod
-    def init_state_space(cls, prim: int, voxelization_grid: int) -> None:
+    def init_state_space(cls, prim: int, voxelization_grid: int, max_coord_abs: float=1.0) -> None:
+        assert prim > 0 and voxelization_grid > 0 and max_coord_abs > 0
         cls.num_primitives = int(math.pow(prim, 3))
         cls.prims_per_side = prim
-        cls.min_coord = -1.0
-        cls.max_coord = 1.0
+        cls.min_coord = -max_coord_abs
+        cls.max_coord = max_coord_abs
         cls.cube_side_len = (cls.max_coord - cls.min_coord) / prim
         cls.voxel_grid_side = voxelization_grid
-        cls.voxel_side = (cls.max_coord - cls.min_coord) / cls.voxel_grid_side
+        cls.voxel_side = (cls.max_coord - cls.min_coord) / (cls.voxel_grid_side - 1)
 
     @classmethod
     def initial(cls) -> PrimState:
