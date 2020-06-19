@@ -1,8 +1,8 @@
 import torch
-import numpy
 import trimesh
 import warnings
 import numpy as np
+import os
 #import chardet
 
 from typing import List, Dict, Union
@@ -18,6 +18,8 @@ from torch_geometric.transforms import FaceToEdge
 from torch_geometric.nn.pool import voxel_grid
 from torch_geometric.utils import to_trimesh, from_trimesh
 
+
+from agents.base_model import BaseModel
 
 # Synset to Label mapping (for ShapeNet core classes)
 synset_to_label = {
@@ -83,8 +85,10 @@ class ShapeDataset(Dataset):
         #mesh = self.read_obj(obj_location)
         #to_trimesh(mesh).show()
         voxels = load_binvox(open(obj_location, 'rb'))
-        voxels.show()
-        voxels = torch.from_numpy(voxels.points)
+        #voxels.show()
+        print(len(voxels.points))
+        BaseModel.model = voxels
+        voxels = torch.from_numpy(voxels.points).to(os.environ['DEVICE'])
         #print(voxels.shape)
         # mesh = self.edge_transform(mesh)
     

@@ -7,6 +7,10 @@ from agents.prim.prim_state import PrimState
 from agents.prim.prim_action import PrimAction
 from agents.prim.prim_reward import PrimReward
 
+from agents.base_model import BaseModel
+
+from trimesh import Scene
+
 
 class PrimExpert(Expert):
 
@@ -17,7 +21,7 @@ class PrimExpert(Expert):
     def poll(self, s: PrimState, prim: int, actions: int) -> Tuple[PrimAction, float]:
         best, bestAct = None, None
         curr = s
-        for act in tqdm(range(actions)): # < unoptimized crap: get exactly the actions for that primitive
+        for act in range(actions): # < unoptimized crap: get exactly the actions for that primitive
             A = self.__env.get_action(act)
             if A.get_primitive() != prim: # < unoptimized crap 
                 continue
@@ -26,7 +30,7 @@ class PrimExpert(Expert):
             if best is None or new > best:
                 best = new
                 bestAct = A
-        print(best)
+        #print(bestAct)
         return bestAct, best
 
     def get_action_sequence(self, s: PrimState, max_steps: int) -> List[Experience]:
@@ -40,6 +44,12 @@ class PrimExpert(Expert):
                 A, r = self.poll(s, prim, top)
                 succ = A(curr)
                 assert len(succ) > 0
+
+                #scene = Scene()
+                #scene.add_geometry(succ.meshify())
+                #scene.add_geometry(BaseModel.model)
+                #scene.show()
+
                 res.append(Experience(curr, succ, A, r))
                 curr = succ #test that this doesn't break anything (print the experience)
         return res

@@ -10,7 +10,7 @@ This work is based on [this paper](https://arxiv.org/abs/2003.12397) by Lin C., 
 
 ## Dependencies
 
-The training process requires the following modules:
+The following modules are required:
 
 * PyTorch
 
@@ -18,4 +18,12 @@ The training process requires the following modules:
 
 * TriMesh
 
-* Blender
+* OpenSCAD
+
+## Data
+
+I used the following datasets to train different versions of my models:
+
+* ShapeNet Core V2 (rigid objects)
+
+I could not include such data in the repository for size and copyright issues. If you wish to try out the training process, follow the links and download it. You will find the required directory structure in `./data/info.txt`.

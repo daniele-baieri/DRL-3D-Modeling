@@ -1,11 +1,11 @@
-import time, math
+import time, math, os
 import torch
 import trimesh
 
 from torch.utils.data import DataLoader, Dataset
 from torch.optim import Adam
 
-from torch_geometric.utils import to_trimesh
+#from torch_geometric.utils import to_trimesh
 
 from trimesh.repair import fix_inversion, fix_normals, fix_winding
 
@@ -65,19 +65,28 @@ def test():
     
 def virtual_expert_modeling():
     PrimState.init_state_space(3, 64) #weird result with different max_coord_abs
-    PrimAction.init_action_space(PrimState.num_primitives, 2, [-2.0, -1.0, 1.0, 2.0])
+    PrimAction.init_action_space(PrimState.num_primitives, 2, [-1.0, -0.5, 0.5, 1.0])
 
-    R = PrimReward(0.1, 0.01)
+    R = PrimReward(0.1, 0.000001)
     env = Environment(PrimAction.ground(), R)
     exp = PrimExpert(R, env)
 
     M = PrimModel(10, PrimAction.act_space_size)
-    D = ShapeDataset('../data/ShapeNet', categories=['pistol'])
+    D = ShapeDataset('../data/ShapeNet', categories=['knife'])
     episode = next(iter(D))
     BaseModel.new_episode(episode['reference'], episode['mesh'])
 
     current = PrimState.initial()
-    current.voxelize(cubes=True)
+    x = current.voxelize()
+    print(len(x))
+    s = torch.zeros(64 ** 3, dtype=torch.long)
+    s[x] = 1
+
+    t = torch.zeros(64 ** 3, dtype=torch.long)
+    t[episode['mesh']] = 1
+
+    print(R.volume_intersection(s, t))
+    print(R.volume_union(s, t))
 
     experiences = exp.get_action_sequence(current, 27 * 4)
     actions = [e.get_action() for e in experiences]
@@ -93,28 +102,31 @@ def virtual_expert_modeling():
 
 if __name__ == "__main__":
 
+    os.environ['DEVICE'] = 'cuda' if torch.cuda.is_available() else 'cpu'
+
     t = time.time()
     virtual_expert_modeling()
     print("Test time: " + str(time.time() - t))
 
     # old tests
 
-    '''    
+    '''
     print("Begin")
     PrimState.init_state_space(3, 64)
-    PrimAction.init_action_space(PrimState.num_primitives, 2, [0.3, 0.5])
+    PrimAction.init_action_space(PrimState.num_primitives, 2, [-0.5 , 1.0])
     s = PrimState.initial()
-    print(torch.max(s.voxelize()))
     print("Initialized")
-    a1 = PrimAction(0, vert=0, axis=0, slide=0.3)
-    a2 = PrimAction(1, vert=0, axis=0, slide=0.5)
-    a3 = PrimAction(2, vert=1, axis=1, slide=0.3)
-    a4 = PrimAction(8, delete=True)
-    a5 = PrimAction(0, vert=0, axis=1, slide=0.3)
-    s1 = a1(a2(a3(a4(a5(s)))))
+    a1 = PrimAction(0, vert=0, axis=1, slide=-0.5)
+    #a2 = PrimAction(1, vert=0, axis=0, slide=0.5)
+    #a3 = PrimAction(2, vert=1, axis=1, slide=0.3)
+    #a4 = PrimAction(8, delete=True)
+    #a5 = PrimAction(0, vert=0, axis=1, slide=0.3)
+    s1 = a1(s)
+    s1.meshify().show()
     print("Computed successor")
+    x = s1.voxelize()
 
-    D = ShapeDataset('/home/bayo/Documents/CS1920/DLAI-s2-2020/project/data/ShapeNet', categories=['rifle'])
+    D = ShapeDataset('/home/bayo/Documents/CS1920/DLAI-s2-2020/project/data/ShapeNet', categories=['knife'])
     M = next(iter(D))
     R = PrimReward(0.2, 0.01)
     BaseModel.new_episode(M['reference'], M['mesh'])

@@ -1,5 +1,5 @@
 from __future__ import annotations
-import copy, time, math
+import copy, time, math, os
 import torch
 from typing import List, Union
 from itertools import product
@@ -61,31 +61,34 @@ class PrimState(State):
         point_cloud = torch.cat([c.to_geom_data().pos for c in prims])
         min_xyz = torch.min(point_cloud, dim=0)[0]
         max_xyz = torch.max(point_cloud, dim=0)[0]
-        X_space = torch.linspace(min_xyz[0], max_xyz[0], self.voxel_grid_side)#+1)[:-1]
-        Y_space = torch.linspace(min_xyz[1], max_xyz[1], self.voxel_grid_side)#+1)[:-1]
-        Z_space = torch.linspace(min_xyz[2], max_xyz[2], self.voxel_grid_side)#+1)[:-1] 
+        # NOTE: this way we just ignore points that fall out of the canonical frame.
+        
+        #min_comp = torch.min(min_xyz)
+        #max_comp = torch.max(max_xyz)
+        pitch = (self.max_coord - self.min_coord) / (self.voxel_grid_side) #(max_comp - min_comp) / (self.voxel_grid_side - 1)
+        offset = pitch / 2
+        X_space = torch.linspace(self.min_coord+offset, self.max_coord-offset, self.voxel_grid_side)
+        Y_space = torch.linspace(self.min_coord+offset, self.max_coord-offset, self.voxel_grid_side)
+        Z_space = torch.linspace(self.min_coord+offset, self.max_coord-offset, self.voxel_grid_side)
 
         subdivisions = [c.subdivide(X_space, Y_space, Z_space) for c in prims]
 
-        min_comp = torch.min(min_xyz)
-        max_comp = torch.max(max_xyz)
-        pitch = (max_comp - min_comp) / (self.voxel_grid_side - 1)
 
         if cubes:
             # NOTE: unique concatenation of all these voxel grids == (cubes == False)
             self.__vox_list_cache = [
                 torch.unique(
                     voxel_grid(
-                        pc, torch.zeros(len(pc)), pitch, min_comp, max_comp
+                        pc, torch.zeros(len(pc)), pitch, self.min_coord, self.max_coord#min_comp, max_comp
                     ), sorted=False
                 ) for pc in subdivisions
             ]
             return self.__vox_list_cache
         else:
-            sub_point_cloud = torch.cat(subdivisions)
+            sub_point_cloud = torch.cat(subdivisions).to(os.environ['DEVICE'])
             voxelgrid = voxel_grid(
                 sub_point_cloud, torch.zeros(len(sub_point_cloud)), 
-                pitch, min_comp, max_comp
+                pitch, self.min_coord+offset, self.max_coord-offset#min_comp, max_comp
             )
             self.__vox_cache = torch.unique(voxelgrid, sorted=False)
             return self.__vox_cache
@@ -95,6 +98,11 @@ class PrimState(State):
 
     def get_primitives(self) -> List[Cuboid]:
         return copy.deepcopy(self.__primitives)
+
+    def is_legal_action(self, prim: int, vert: int, axis: int, slide: float) -> bool:
+        verts = self.__primitives[prim].get_pivots()
+        new_val = verts[vert, axis] + slide
+        return new_val >= self.min_coord and new_val <= self.max_coord
 
     @classmethod
     def init_state_space(cls, prim: int, voxelization_grid: int, max_coord_abs: float=1.0) -> None:
