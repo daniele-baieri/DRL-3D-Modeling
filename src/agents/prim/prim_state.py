@@ -73,15 +73,16 @@ class PrimState(State):
 
         subdivisions = [c.subdivide(X_space, Y_space, Z_space) for c in prims]
 
-
         if cubes:
             # NOTE: unique concatenation of all these voxel grids == (cubes == False)
             self.__vox_list_cache = [
                 torch.unique(
                     voxel_grid(
-                        pc, torch.zeros(len(pc)), pitch, self.min_coord, self.max_coord#min_comp, max_comp
-                    ), sorted=False
-                ) for pc in subdivisions
+                        pc, torch.zeros(len(pc)), pitch, 
+                        self.min_coord + offset, self.max_coord - offset#min_comp, max_comp
+                    ), 
+                    sorted=False
+                ) for pc in subdivisions if len(pc) > 0
             ]
             return self.__vox_list_cache
         else:

@@ -84,11 +84,10 @@ class ShapeDataset(Dataset):
 
         #mesh = self.read_obj(obj_location)
         #to_trimesh(mesh).show()
-        voxels = load_binvox(open(obj_location, 'rb'))
+        model = load_binvox(open(obj_location, 'rb'))
         #voxels.show()
-        print(len(voxels.points))
-        BaseModel.model = voxels
-        voxels = torch.from_numpy(voxels.points).to(os.environ['DEVICE'])
+        print(len(model.points))
+        voxels = torch.from_numpy(model.points).to(os.environ['DEVICE'])
         #print(voxels.shape)
         # mesh = self.edge_transform(mesh)
     
@@ -102,7 +101,7 @@ class ShapeDataset(Dataset):
         min_comp = torch.min(voxels)#torch.min(mesh.pos, dim=0)[0]
         #print(max_comp, min_comp)
         #widest = torch.argmax(max_comp - min_comp, dim=0).item()
-        pitch = (max_comp - min_comp) / (self.voxel_grid_side - 1)#(max_comp[widest] - min_comp[widest]) / self.voxel_grid_side
+        pitch = (max_comp - min_comp) / (self.voxel_grid_side)#(max_comp[widest] - min_comp[widest]) / self.voxel_grid_side
         voxels = torch.unique(
             voxel_grid(
                 voxels, torch.zeros(voxels.shape[0]), 
@@ -111,7 +110,7 @@ class ShapeDataset(Dataset):
             )
         )
         print(voxels.shape)
-        return {'mesh': voxels, 'reference': torch.rand((120, 120))}
+        return {'target': model, 'mesh': voxels, 'reference': torch.rand((120, 120))}
 
     def __convert_categories(self, categories):
         assert categories is not None, 'List of categories empty'

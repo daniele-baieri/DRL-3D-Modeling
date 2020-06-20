@@ -57,7 +57,7 @@ def test():
 
     trainer = DoubleDQNTrainer(online, target, env, opt, exp, rb, 0.999)
 
-    D = ShapeDataset('../data/ShapeNet', categories=['knife'])
+    D = ShapeDataset('../data/ShapeNet', categories=['lamp'])
     t1 = time.time()
     trainer.reinforcement(D, PrimState.initial())
     print("Training time: " + str(time.time() - t1))
@@ -65,19 +65,26 @@ def test():
     
 def virtual_expert_modeling():
     PrimState.init_state_space(3, 64) #weird result with different max_coord_abs
-    PrimAction.init_action_space(PrimState.num_primitives, 2, [-1.0, -0.5, 0.5, 1.0])
+    PrimAction.init_action_space(PrimState.num_primitives, 2, [-1, -0.5, 0.5, 1.0])
 
-    R = PrimReward(0.1, 0.000001)
+    R = PrimReward(0.1, 0.001)
     env = Environment(PrimAction.ground(), R)
     exp = PrimExpert(R, env)
 
     M = PrimModel(10, PrimAction.act_space_size)
     D = ShapeDataset('../data/ShapeNet', categories=['knife'])
-    episode = next(iter(D))
+    import random
+    idx = random.randint(1, 10)
+    episode = D[idx]
     BaseModel.new_episode(episode['reference'], episode['mesh'])
 
     current = PrimState.initial()
-    x = current.voxelize()
+    '''
+    a1 = PrimAction(0, vert=0, axis=1, slide=0.5)
+    s1 = a1(current)
+
+    x = s1.voxelize(cubes=True)
+    x = torch.unique(torch.cat(x), sorted=False)
     print(len(x))
     s = torch.zeros(64 ** 3, dtype=torch.long)
     s[x] = 1
@@ -87,7 +94,8 @@ def virtual_expert_modeling():
 
     print(R.volume_intersection(s, t))
     print(R.volume_union(s, t))
-
+    '''
+    
     experiences = exp.get_action_sequence(current, 27 * 4)
     actions = [e.get_action() for e in experiences]
 
@@ -95,8 +103,15 @@ def virtual_expert_modeling():
         current = act(current)
 
     print(len(current))
-    
-    current.meshify().show()
+    t = torch.zeros(64 ** 3, dtype=torch.long, device=os.environ['DEVICE'])
+    t[episode['mesh']] = 1
+    print(R.iou(current, t))
+    print(R.iou_sum(current, t))
+        
+    scene = trimesh.Scene()
+    scene.add_geometry(current.meshify())
+    scene.add_geometry(episode['target'])
+    scene.show()
 
 
 

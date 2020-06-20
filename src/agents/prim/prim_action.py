@@ -77,27 +77,17 @@ class PrimAction(Action):
 
     @classmethod
     def ground(cls) -> List[PrimAction]:
-        res = []
-
-        #ground sliding actions
-        res.extend([
-            PrimAction(p, vert=v, slide=s, axis=a) 
-            for p, v, s, a in product(
-                range(cls.primitives),
-                range(cls.vertices),
-                cls.slides,
-                range(3)
-            )
-        ])
-        
-        cls.slide_actions = len(res)
-
-        #ground deleting actions
-        res.extend([
-            PrimAction(p, delete=True) 
+        res = [
+            [
+                PrimAction(p, vert=v, slide=s, axis=a) 
+                for v, s, a in product(range(cls.vertices), cls.slides, range(3))
+            ] + 
+            [PrimAction(p, delete=True)]
             for p in range(cls.primitives)
-        ])
+        ]
+        res = [x for l in res for x in l]
 
+        cls.act_per_prim = cls.vertices * 3 * len(cls.slides) + 1
         cls.act_space_size = len(res)
-
+        
         return res

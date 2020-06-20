@@ -18,13 +18,13 @@ class PrimExpert(Expert):
         self.__reward = r
         self.__env = env
 
-    def poll(self, s: PrimState, prim: int, actions: int) -> Tuple[PrimAction, float]:
+    def poll(self, s: PrimState, prim: int, delete: bool) -> Tuple[PrimAction, float]:
         best, bestAct = None, None
         curr = s
-        for act in range(actions): # < unoptimized crap: get exactly the actions for that primitive
+        lo = prim * PrimAction.act_per_prim
+        hi = lo + PrimAction.act_per_prim - (1-int(delete))
+        for act in range(lo, hi): 
             A = self.__env.get_action(act)
-            if A.get_primitive() != prim: # < unoptimized crap 
-                continue
             #print(A)
             new = self.__reward(curr, A(curr))
             if best is None or new > best:
@@ -40,8 +40,8 @@ class PrimExpert(Expert):
         while step < max_steps:
             for prim in tqdm(range(PrimState.num_primitives)):
                 step += 1
-                top = PrimAction.slide_actions if step <= max_steps//2 else PrimAction.act_space_size
-                A, r = self.poll(s, prim, top)
+                delete = step > max_steps//2 
+                A, r = self.poll(s, prim, delete)
                 succ = A(curr)
                 assert len(succ) > 0
 

@@ -16,13 +16,15 @@ class PrimReward(Reward):
         self.__single_vox_volume = math.pow(PrimState.voxel_side, 3)
         self.__valid_cache = False
     
+        
     def _forward(self, old: PrimState, new: PrimState) -> float:
         assert old is not None and new is not None
         if len(new) == 0:
             return -1
         l = int(math.pow(PrimState.voxel_grid_side, 3))
+        O = BaseModel.get_model()
         target = torch.zeros(l, dtype=torch.long).to(os.environ['DEVICE'])
-        target[BaseModel.get_model()] = 1
+        target[O] = 1
 
         self.__voxels_cache = new.voxelize(cubes=True)
         self.__valid_cache = True
@@ -61,9 +63,9 @@ class PrimReward(Reward):
             state = s.voxelize(cubes=True)
         #target = BaseModel.get_model()
         #t = time.time()
-        res = torch.FloatTensor([self.__compute_iou(c, target) for c in state]).to(os.environ['DEVICE'])
+        res = sum(self.__compute_iou(c, target) for c in state)
         #print("IOU SUM TIME: " + str(time.time() - t))
-        return res.sum() / len(state)
+        return res / len(state)
 
     def parsimony(self, s: PrimState) -> float:
         P = PrimState.num_primitives
@@ -73,8 +75,8 @@ class PrimReward(Reward):
         l = int(math.pow(PrimState.voxel_grid_side, 3))
         x = torch.zeros(l, dtype=torch.long).to(os.environ['DEVICE'])
         x[s] = 1
-        i = self.__volume_intersection(x, t)
-        u = self.__volume_union(x, t)
+        i = self.volume_intersection(x, t)
+        u = self.volume_union(x, t)
         return i / u
 
     def volume_intersection(self, s: torch.LongTensor, t: torch.LongTensor) -> float:
@@ -140,4 +142,5 @@ class PrimReward(Reward):
 
     def __volume_union(self, s1: Set, s2: Set) -> float:
         return len(s1.union(s2)) * self.__single_vox_volume
+    
     '''
