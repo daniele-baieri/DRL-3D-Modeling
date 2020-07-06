@@ -20,6 +20,7 @@ from torch_geometric.utils import to_trimesh, from_trimesh
 
 
 from agents.base_model import BaseModel
+from geometry.voxelize import voxelize
 
 # Synset to Label mapping (for ShapeNet core classes)
 synset_to_label = {
@@ -97,20 +98,9 @@ class ShapeDataset(Dataset):
         #voxels = mesh.voxelized(pitch)
         #voxels.show()
 
-        max_comp = torch.max(voxels)#torch.max(mesh.pos, dim=0)[0]
-        min_comp = torch.min(voxels)#torch.min(mesh.pos, dim=0)[0]
-        #print(max_comp, min_comp)
-        #widest = torch.argmax(max_comp - min_comp, dim=0).item()
-        pitch = (max_comp - min_comp) / (self.voxel_grid_side)#(max_comp[widest] - min_comp[widest]) / self.voxel_grid_side
-        voxels = torch.unique(
-            voxel_grid(
-                voxels, torch.zeros(voxels.shape[0]), 
-                #torch.from_numpy(mesh.pos).float(), 
-                pitch, min_comp, max_comp#min_comp[widest], max_comp[widest] 
-            )
-        )
-        print(voxels.shape)
-        return {'target': model, 'mesh': voxels, 'reference': torch.rand((120, 120))}
+        voxels = voxelize(voxels, 64)
+        print(voxels.sum())
+        return {'target': model, 'mesh': voxels.bool(), 'reference': torch.rand((120, 120))}
 
     def __convert_categories(self, categories):
         assert categories is not None, 'List of categories empty'

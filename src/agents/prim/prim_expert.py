@@ -30,7 +30,7 @@ class PrimExpert(Expert):
             if best is None or new > best:
                 best = new
                 bestAct = A
-        #print(bestAct)
+        #print(best)
         return bestAct, best
 
     def get_action_sequence(self, s: PrimState, max_steps: int) -> List[Experience]:
@@ -41,7 +41,7 @@ class PrimExpert(Expert):
             for prim in tqdm(range(PrimState.num_primitives)):
                 step += 1
                 delete = step > max_steps//2 
-                A, r = self.poll(s, prim, delete)
+                A, r = self.poll(curr, prim, delete)
                 succ = A(curr)
                 assert len(succ) > 0
 

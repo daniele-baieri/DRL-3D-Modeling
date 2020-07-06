@@ -7,8 +7,6 @@ from torch.optim import Adam
 
 #from torch_geometric.utils import to_trimesh
 
-from trimesh.repair import fix_inversion, fix_normals, fix_winding
-
 from agents.prim.prim_state import PrimState
 from agents.prim.prim_action import PrimAction
 from agents.prim.prim_model import PrimModel
@@ -65,20 +63,24 @@ def test():
     
 def virtual_expert_modeling():
     PrimState.init_state_space(3, 64) #weird result with different max_coord_abs
-    PrimAction.init_action_space(PrimState.num_primitives, 2, [-1, -0.5, 0.5, 1.0])
+    x = torch.tensor([-1.0,-1.0,-1.0])
+    y = torch.tensor([1.0,1.0,1.0])
+    unit = torch.dist(x, y).item() / 16
+    PrimAction.init_action_space(PrimState.num_primitives, 2, [-2 * unit, -unit, unit, 2 * unit])
 
     R = PrimReward(0.1, 0.001)
     env = Environment(PrimAction.ground(), R)
     exp = PrimExpert(R, env)
 
     M = PrimModel(10, PrimAction.act_space_size)
-    D = ShapeDataset('../data/ShapeNet', categories=['knife'])
+    D = ShapeDataset('../data/ShapeNet', categories=['rifle'])
     import random
     idx = random.randint(1, 10)
     episode = D[idx]
     BaseModel.new_episode(episode['reference'], episode['mesh'])
 
     current = PrimState.initial()
+    current.voxelize(cubes=True)
     '''
     a1 = PrimAction(0, vert=0, axis=1, slide=0.5)
     s1 = a1(current)

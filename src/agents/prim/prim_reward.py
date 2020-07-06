@@ -21,9 +21,9 @@ class PrimReward(Reward):
         assert old is not None and new is not None
         if len(new) == 0:
             return -1
-        l = int(math.pow(PrimState.voxel_grid_side, 3))
+        l = PrimState.voxel_grid_side ** 3
         O = BaseModel.get_model()
-        target = torch.zeros(l, dtype=torch.long).to(os.environ['DEVICE'])
+        target = torch.zeros(l, dtype=torch.bool).to(os.environ['DEVICE'])
         target[O] = 1
 
         self.__voxels_cache = new.voxelize(cubes=True)
@@ -42,9 +42,9 @@ class PrimReward(Reward):
     def iou(self, s: PrimState, target: torch.LongTensor) -> float:
         state = None
         if self.__valid_cache:
-            state = torch.unique(torch.cat(self.__voxels_cache), sorted=False)
+            state = self.__voxels_cache.sum(dim=0).bool()
         else:
-            state = torch.unique(torch.cat(s.voxelize(cubes=True)), sorted=False)
+            state = s.voxelize(cubes=False)
         #s.meshify().show()
         if torch.max(state) > 262144:
             s.meshify().show()
@@ -63,20 +63,19 @@ class PrimReward(Reward):
             state = s.voxelize(cubes=True)
         #target = BaseModel.get_model()
         #t = time.time()
-        res = sum(self.__compute_iou(c, target) for c in state)
+        i = (state & target).sum(dim=1).float()
+        u = (state | target).sum(dim=1).float()
+        res = torch.div(i, u).sum()
         #print("IOU SUM TIME: " + str(time.time() - t))
-        return res / len(state)
+        return res / len(s)
 
     def parsimony(self, s: PrimState) -> float:
         P = PrimState.num_primitives
         return P - len(s)
 
     def __compute_iou(self, s: torch.LongTensor, t: torch.LongTensor) -> float:
-        l = int(math.pow(PrimState.voxel_grid_side, 3))
-        x = torch.zeros(l, dtype=torch.long).to(os.environ['DEVICE'])
-        x[s] = 1
-        i = self.volume_intersection(x, t)
-        u = self.volume_union(x, t)
+        i = self.volume_intersection(s, t)
+        u = self.volume_union(s, t)
         return i / u
 
     def volume_intersection(self, s: torch.LongTensor, t: torch.LongTensor) -> float:

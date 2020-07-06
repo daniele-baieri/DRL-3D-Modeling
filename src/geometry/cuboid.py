@@ -83,6 +83,8 @@ class Cuboid(Primitive):
         Z_valid = Z[(Z >= min_coord[2]) & (Z <= max_coord[2])]
         return torch.cartesian_prod(X_valid, Y_valid, Z_valid).to(os.environ['DEVICE'])
 
+    #def voxelized(self, )
+
     @classmethod
     def aggregate(cls, C: List[Cuboid]) -> Data:
         data = [c.to_geom_data() for c in C if c is not None] #NOTE: check that this is right

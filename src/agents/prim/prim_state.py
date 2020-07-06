@@ -58,28 +58,43 @@ class PrimState(State):
 
         prims = self.get_live_primitives()
 
-        point_cloud = torch.cat([c.to_geom_data().pos for c in prims])
-        min_xyz = torch.min(point_cloud, dim=0)[0]
-        max_xyz = torch.max(point_cloud, dim=0)[0]
-        # NOTE: this way we just ignore points that fall out of the canonical frame.
+        point_cloud = torch.cat([c.to_geom_data().pos for c in prims])        
+        min_comp = point_cloud.min()
+        max_comp = point_cloud.max()
+        pitch = (max_comp - min_comp) / (self.voxel_grid_side)#(self.max_coord - self.min_coord) / (self.voxel_grid_side) #
+        #offset = pitch / 2
+        #vox_space = torch.linspace(min_comp, max_comp, self.voxel_grid_side)
+        #Y_space = torch.linspace(self.min_coord+offset, self.max_coord-offset, self.voxel_grid_side)
+        #Z_space = torch.linspace(self.min_coord+offset, self.max_coord-offset, self.voxel_grid_side)
+
+        #subdivisions = [c.subdivide(vox_space, vox_space, vox_space) for c in prims]
+        if not cubes:
+            G = torch.zeros(self.voxel_grid_side, self.voxel_grid_side, self.voxel_grid_side, dtype=torch.long)
+        else:
+            G = []
+
+        for c in prims:
+            verts = c.get_pivots()
+            VOX = torch.floor((verts - min_comp) / pitch).long()
+            if not cubes:
+                G[VOX[0,0]:VOX[1,0], VOX[0,1]:VOX[1,1], VOX[0,2]:VOX[1,2]] = 1
+            else:
+                H = torch.zeros(self.voxel_grid_side, self.voxel_grid_side, self.voxel_grid_side, dtype=torch.long)
+                H[VOX[0,0]:VOX[1,0], VOX[0,1]:VOX[1,1], VOX[0,2]:VOX[1,2]] = 1
+                G.append(H.flatten())
         
-        #min_comp = torch.min(min_xyz)
-        #max_comp = torch.max(max_xyz)
-        pitch = (self.max_coord - self.min_coord) / (self.voxel_grid_side) #(max_comp - min_comp) / (self.voxel_grid_side - 1)
-        offset = pitch / 2
-        X_space = torch.linspace(self.min_coord+offset, self.max_coord-offset, self.voxel_grid_side)
-        Y_space = torch.linspace(self.min_coord+offset, self.max_coord-offset, self.voxel_grid_side)
-        Z_space = torch.linspace(self.min_coord+offset, self.max_coord-offset, self.voxel_grid_side)
-
-        subdivisions = [c.subdivide(X_space, Y_space, Z_space) for c in prims]
-
+        if cubes:
+            return torch.stack(G).to(os.environ['DEVICE'])
+        else:
+            return G.flatten().to(os.environ['DEVICE'])
+        '''
         if cubes:
             # NOTE: unique concatenation of all these voxel grids == (cubes == False)
             self.__vox_list_cache = [
                 torch.unique(
                     voxel_grid(
                         pc, torch.zeros(len(pc)), pitch, 
-                        self.min_coord + offset, self.max_coord - offset#min_comp, max_comp
+                        min_comp + offset, max_comp-offset#self.min_coord + offset, self.max_coord - offset#
                     ), 
                     sorted=False
                 ) for pc in subdivisions if len(pc) > 0
@@ -89,10 +104,11 @@ class PrimState(State):
             sub_point_cloud = torch.cat(subdivisions).to(os.environ['DEVICE'])
             voxelgrid = voxel_grid(
                 sub_point_cloud, torch.zeros(len(sub_point_cloud)), 
-                pitch, self.min_coord+offset, self.max_coord-offset#min_comp, max_comp
+                pitch, min_comp, max_comp-offset#self.min_coord+offset, self.max_coord-offset#
             )
             self.__vox_cache = torch.unique(voxelgrid, sorted=False)
             return self.__vox_cache
+        '''
 
     def get_live_primitives(self) -> List[Cuboid]:
         return [c for c in self.__primitives if c is not None]
