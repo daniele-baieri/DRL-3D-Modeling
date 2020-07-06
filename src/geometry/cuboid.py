@@ -41,9 +41,9 @@ class Cuboid(Primitive):
         T = torch.eye(4)
         T[[0,1,2],3] = new_center
         self.__trimesh = box(extents=v[0,:]-v[1,:], transform=T)
-        edge_maker = FaceToEdge()
+        add_edges = FaceToEdge()
 
-        self.__shape = edge_maker(from_trimesh(self.__trimesh))
+        self.__shape = add_edges(from_trimesh(self.__trimesh))
 
 
     def __repr__(self) -> str:

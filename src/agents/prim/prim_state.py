@@ -116,15 +116,17 @@ class PrimState(State):
     def get_primitives(self) -> List[Cuboid]:
         return copy.deepcopy(self.__primitives)
 
+    '''
     def is_legal_action(self, prim: int, vert: int, axis: int, slide: float) -> bool:
         verts = self.__primitives[prim].get_pivots()
         new_val = verts[vert, axis] + slide
         return new_val >= self.min_coord and new_val <= self.max_coord
+    '''
 
     @classmethod
     def init_state_space(cls, prim: int, voxelization_grid: int, max_coord_abs: float=1.0) -> None:
         assert prim > 0 and voxelization_grid > 0 and max_coord_abs > 0
-        cls.num_primitives = int(math.pow(prim, 3))
+        cls.num_primitives = prim ** 3
         cls.prims_per_side = prim
         cls.min_coord = -max_coord_abs
         cls.max_coord = max_coord_abs

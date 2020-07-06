@@ -61,6 +61,14 @@ class ReplayBuffer(Dataset):
             self.memory[idx] = e
         self.__pointer += 1
 
+    def overwrite(self, D: List[Experience]) -> None:
+        self.clear()
+        self.memory = D
+
+    def extend(self, D: List[Experience]) -> None:
+        for e in D:
+            self.push(e)
+
     def clear(self) -> None:
         self.memory = []
         self.__pointer = 0

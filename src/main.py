@@ -80,23 +80,6 @@ def virtual_expert_modeling():
     BaseModel.new_episode(episode['reference'], episode['mesh'])
 
     current = PrimState.initial()
-    current.voxelize(cubes=True)
-    '''
-    a1 = PrimAction(0, vert=0, axis=1, slide=0.5)
-    s1 = a1(current)
-
-    x = s1.voxelize(cubes=True)
-    x = torch.unique(torch.cat(x), sorted=False)
-    print(len(x))
-    s = torch.zeros(64 ** 3, dtype=torch.long)
-    s[x] = 1
-
-    t = torch.zeros(64 ** 3, dtype=torch.long)
-    t[episode['mesh']] = 1
-
-    print(R.volume_intersection(s, t))
-    print(R.volume_union(s, t))
-    '''
     
     experiences = exp.get_action_sequence(current, 27 * 4)
     actions = [e.get_action() for e in experiences]

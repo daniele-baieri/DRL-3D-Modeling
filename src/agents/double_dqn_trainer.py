@@ -1,5 +1,5 @@
 import torch
-from typing import Tuple, Dict
+from typing import Tuple, Dict, Union
 
 from torch.utils.data import Dataset
 from torch.nn import SmoothL1Loss
@@ -14,6 +14,7 @@ from agents.experience import Experience
 from agents.action import Action
 from agents.state import State
 from agents.expert import Expert
+from agents.imitation.long_short_memory import LongShortMemory
 
 from geometry.shape_dataset import ShapeDataset
 
@@ -30,35 +31,14 @@ class DoubleDQNTrainer:
         self.__env = env
         self.__opt = opt
         self.__exp = exp
-        self.__rl_buf = buf
+        # self.__rl_buf = buf
         self.__gamma = disc_fact
         self.__loss = SmoothL1Loss()
 
-    def __sample(self, protocol: str) -> Dict:
-        if protocol == 'R':
-            return next(iter(self.__rl_buf))
-        elif protocol == 'I':
-            S = next(iter(self.__short_mem))
-            L = next(iter(self.__long_mem))
-            # TODO: fix this horrible thing.
-            # Recall that you can't 'join' two pytorch_geometric Batches.
-
         
-    def imitation(self, init_state: State, imit_steps: int, 
-            batch_size: int, long_mem: int, short_mem: int) -> None:
-        assert batch_size % 2 == 0
-
-        self.__long_mem = RBDataLoader(
-            ReplayBuffer(long_mem), imit_steps, batch_size=batch_size/2
-        )
-        self.__short_mem = RBDataLoader(
-            ReplayBuffer(short_mem), imit_steps, batch_size=batch_size/2
-        )
-
-        start = self.__exp.get_action_sequence(init_state, batch_size)
-
-        # TODO: LongShortMemory
-
+    def imitation(self) -> None:
+        
+        # start = self.__exp.get_action_sequence(init_state, batch_size)
         # Starting from env.get_state(), generate M new Experiences D using the virtual expert
         # SHORT = D, LONG = D
         # for k = 1 to N:
@@ -66,10 +46,35 @@ class DoubleDQNTrainer:
         #     Using the current model predictions, get a series of new states S
         #     Annotate S with actions, rewards and successors given by the virtual expert (obtaining D')
         #     LONG = LONG U D', SHORT = D'
+        N = self.__online.get_episode_len()
 
-        raise NotImplementedError
+        for idx in range(N):
+            batch = self.imitation_buffer.sample()
 
-    def reinforcement(self, data: ShapeDataset, initial_state: State):
+    def reinforcement(self) -> None:
+        
+        for _ in range(self.__online.get_episode_len()):
+
+            action = self.select_action(self.__env.get_state())
+            succ, reward = self.__env.transition(action)
+            exp = Experience(self.__env.get_state(), succ, action, reward)
+            self.reinforcement_buffer.dataset.push(exp)
+            self.__env.set_state(succ)
+
+            batch = next(iter(self.reinforcement_buffer))
+            self.optimize_model(batch)
+
+            self.__online.step()
+            self.__target.step()
+            
+
+    def train(self, data: ShapeDataset, initial_state: State,
+            long_mem: int, short_mem: int, rl_mem: int, batch_size: int) -> None:
+
+        ep_len = self.__online.get_episode_len()
+        self.imitation_buffer = LongShortMemory(long_mem, short_mem, ep_len, batch_size)
+        rl_mem = ReplayBuffer(rl_mem)
+        self.reinforcement_buffer = RBDataLoader(rl_mem, ep_len, batch_size)
         
         self.__online.train()
 
@@ -79,30 +84,17 @@ class DoubleDQNTrainer:
             self.__online.zero_step()
             self.__target.zero_step()
 
-            for _ in range(self.__online.get_episode_len()):
+            self.imitation()
+            self.reinforcement()
 
-                action = self.select_action(self.__env.get_state())
-                succ, reward = self.__env.transition(action)
-                exp = Experience(self.__env.get_state(), succ, action, reward)
-                self.__rl_buf.dataset.push(exp)
-                self.__env.set_state(succ)
-
-                self.optimize_model()
-
-                self.__online.step()
-                self.__target.step()
             self.__target.load_state_dict(self.__online.state_dict())
 
-    #def train():
-    #    imitation()
-    #    reinforcement()
-
-    def optimize_model(self) -> None:
-        exps = next(iter(self.__rl_buf))
-        state_in = exps['src']
-        next_in = exps['dest']
-        action_ids = exps['act'].unsqueeze(0).t()
-        rewards = exps['r']
+    def optimize_model(self, batch: Dict[str, Union[Batch, torch.Tensor]]) -> None:
+        # exps = next(iter(self.__rl_buf))
+        state_in = batch['src']
+        next_in = batch['dest']
+        action_ids = batch['act'].unsqueeze(0).T
+        rewards = batch['r']
 
         pred = self.__online(state_in).gather(1, action_ids)
         next_val = self.__target(next_in).max(dim=-1)[0].detach()
