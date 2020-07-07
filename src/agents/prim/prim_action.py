@@ -50,8 +50,6 @@ class PrimAction(Action):
             prims[self.__prim] = None
             return PrimState(prims)
         else:
-            #if not s.is_legal_action(self.__prim, self.__vert, self.__axis, self.__slide):
-            #    return s # This forces cubes to stay in the canonical frame by giving a zero reward for actions that stretch cubes out of it
             c = prims[self.__prim]
             prims[self.__prim] = c.slide(self.__vert, self.__axis, self.__slide)
             return PrimState(prims)

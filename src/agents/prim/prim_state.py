@@ -51,10 +51,13 @@ class PrimState(State):
         return self.__mesh_cache
 
     def voxelize(self, cubes: bool=False) -> Union[torch.LongTensor, List[torch.LongTensor]]:
-        if cubes and self.__vox_list_cache is not None:
-            return self.__vox_list_cache
-        elif not cubes and self.__vox_cache is not None:
-            return self.__vox_cache
+        """
+        Efficient voxelization for union of cuboids shapes.
+        """
+        #if cubes and self.__vox_list_cache is not None:
+        #    return self.__vox_list_cache
+        #elif not cubes and self.__vox_cache is not None:
+        #    return self.__vox_cache
 
         prims = self.get_live_primitives()
 

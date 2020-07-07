@@ -49,12 +49,11 @@ class PrimModel(BaseModel):
         self.fc1 = Linear(64, 256)
 
         # 3. Step processing stream
-        # Trivial FC layer. Also, no batching (follows current episode) 
+        # Simple FC layer. Also, no batching (follows current episode) 
         self.fc2 = Linear(ep_len, 256)
 
         # 4. Concatenation layer
         self.fc3 = Linear(256 * 3, act_space_size)
-
 
 
     def forward(self, state_batch: Batch) -> torch.Tensor:

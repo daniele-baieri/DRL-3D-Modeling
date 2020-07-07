@@ -16,7 +16,7 @@ class Environment:
         assert self.__current is not None and act is not None
         res = act(self.__current)
         rew = self.__reward(self.__current, res)
-        #self.set_state(res)
+        self.set_state(res)
         return res, rew
 
     def get_state(self) -> State:
@@ -30,3 +30,6 @@ class Environment:
     def get_action(self, idx: int) -> Action:
         assert idx >= 0
         return self.__act_space[idx]
+
+    def reset(self) -> Action:
+        self.__current = None

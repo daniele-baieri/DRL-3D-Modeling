@@ -1,5 +1,5 @@
 import torch
-from typing import Tuple, Dict, Union
+from typing import Tuple, Dict, Union, List
 
 from torch.utils.data import Dataset
 from torch.nn import SmoothL1Loss
@@ -13,7 +13,7 @@ from agents.replay_buffer import ReplayBuffer, RBDataLoader, polar
 from agents.experience import Experience
 from agents.action import Action
 from agents.state import State
-from agents.expert import Expert
+from agents.imitation.expert import Expert
 from agents.imitation.long_short_memory import LongShortMemory
 
 from geometry.shape_dataset import ShapeDataset
@@ -23,7 +23,7 @@ class DoubleDQNTrainer:
 
     def __init__(self, online: BaseModel, target: BaseModel,
                  env: Environment, opt: Optimizer, exp: Expert,
-                 buf: RBDataLoader, disc_fact: float):
+                 disc_fact: float):
         assert disc_fact >= 0.0 and disc_fact <= 1.0
         self.__online = online
         self.__target = target
@@ -36,40 +36,51 @@ class DoubleDQNTrainer:
         self.__loss = SmoothL1Loss()
 
         
-    def imitation(self) -> None:
-        
-        # start = self.__exp.get_action_sequence(init_state, batch_size)
-        # Starting from env.get_state(), generate M new Experiences D using the virtual expert
-        # SHORT = D, LONG = D
-        # for k = 1 to N:
-        #     optimize_model(), but sampling is done equally on SHORT and LONG
-        #     Using the current model predictions, get a series of new states S
-        #     Annotate S with actions, rewards and successors given by the virtual expert (obtaining D')
-        #     LONG = LONG U D', SHORT = D'
+    def imitation(self, iterations: int, updates: int) -> None:
+        """
+        The DAgger procedure.
+        """
+
+        initial = self.__env.get_state()
+
         N = self.__online.get_episode_len()
+        start = self.__exp.unroll(initial, N)
+        self.imitation_buffer.aggregate(start)
 
-        for idx in range(N):
-            batch = self.imitation_buffer.sample()
-
+        for idx in range(iterations):
+            for upd in range(updates):
+                batch = self.imitation_buffer.sample()
+                self.optimize_model(batch)
+            new_episode = self.unroll(initial)
+            D = self.__exp.relabel(new_episode)
+            self.imitation_buffer.aggregate(D)
+            
     def reinforcement(self) -> None:
+        """
+        Double DQN training algorithm: a single episode.
+        """
         
         for _ in range(self.__online.get_episode_len()):
 
-            action = self.select_action(self.__env.get_state())
+            curr = self.__env.get_state()
+            action = self.select_action(curr)
             succ, reward = self.__env.transition(action)
-            exp = Experience(self.__env.get_state(), succ, action, reward)
+            exp = Experience(curr, succ, action, reward)
             self.reinforcement_buffer.dataset.push(exp)
-            self.__env.set_state(succ)
 
             batch = next(iter(self.reinforcement_buffer))
             self.optimize_model(batch)
 
             self.__online.step()
             self.__target.step()
-            
 
     def train(self, data: ShapeDataset, initial_state: State,
-            long_mem: int, short_mem: int, rl_mem: int, batch_size: int) -> None:
+            long_mem: int, short_mem: int, rl_mem: int, batch_size: int,
+            dagger_iter: int, dagger_updates: int) -> None:
+        """
+        Main training loop. Trains a neural network using the Double DQN algorithm, 
+        with a first phase of imitation learning using the DAgger algorithm.
+        """
 
         ep_len = self.__online.get_episode_len()
         self.imitation_buffer = LongShortMemory(long_mem, short_mem, ep_len, batch_size)
@@ -84,13 +95,12 @@ class DoubleDQNTrainer:
             self.__online.zero_step()
             self.__target.zero_step()
 
-            self.imitation()
+            self.imitation(dagger_iter, dagger_updates)
             self.reinforcement()
 
             self.__target.load_state_dict(self.__online.state_dict())
 
     def optimize_model(self, batch: Dict[str, Union[Batch, torch.Tensor]]) -> None:
-        # exps = next(iter(self.__rl_buf))
         state_in = batch['src']
         next_in = batch['dest']
         action_ids = batch['act'].unsqueeze(0).T
@@ -112,3 +122,14 @@ class DoubleDQNTrainer:
         action = self.__env.get_action(pred)
         action.set_index(pred)
         return action
+
+    def unroll(self, s: State) -> List[Experience]:
+        res = []
+        self.__env.set_state(s)
+        for _ in range(self.__online.get_episode_len()):
+            curr = self.__env.get_state()
+            act = self.select_action(curr)
+            succ, r = self.__env.transition(act)
+            exp = Experience(curr, succ, act, r)
+            res.append(exp)
+        return res
