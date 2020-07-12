@@ -1,8 +1,19 @@
 import bpy, os, sys
 from pathlib import Path
 from math import radians
-#from tqdm import tqdm
 import mathutils
+
+"""
+Renders all .obj models found recursively in a root folder
+as png images, using Blender's EEVEE render engine.
+
+By default, it sets a light gray background and a top-right camera.
+
+Usage:
+blender -P render_objs.py <path to a folder containing obj models>
+"""
+
+
 
 root = sys.argv[-1]
 timeout = 10

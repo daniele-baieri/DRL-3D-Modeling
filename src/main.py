@@ -36,34 +36,37 @@ class TestDataset(Dataset):
 '''
 
 def test():
+    
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-    PrimState.init_state_space(3, 64)
+    PrimState.init_state_space(episode_len=10)
     x = torch.tensor([-1.0,-1.0,-1.0])
     y = torch.tensor([1.0,1.0,1.0])
     unit = torch.dist(x, y).item() / 16
     PrimAction.init_action_space(PrimState.num_primitives, 2, [-2 * unit, -unit, unit, 2 * unit])
     
-    R = PrimReward(0.1, 0.001)
+    R = PrimReward(0.1, 0.01)
     env = Environment(PrimAction.ground(), R)
 
-    online = PrimModel(10, PrimAction.act_space_size)
-    target = PrimModel(online.get_episode_len(), PrimAction.act_space_size)
+    online = PrimModel(PrimAction.act_space_size)
+    target = PrimModel(PrimAction.act_space_size)
     target.load_state_dict(online.state_dict())
     target.eval()
     
-    opt = Adam(online.parameters(), 0.01)
-    exp = PrimExpert(R, env)
+    opt = Adam(online.parameters(), 0.0001)
+    exp = PrimExpert(env)
 
-    trainer = DoubleDQNTrainer(online, target, env, opt, exp, 0.999)
+    trainer = DoubleDQNTrainer(online, target, env, opt, exp, 0.999, device)
 
-    D = ShapeDataset('../data/ShapeNet', categories=['camera'])
+    rfc = ShapeDataset('../data/ShapeNet', categories=['rocket', 'pistol'])
+    imit = ShapeDataset('../data/ShapeNet', categories=['rocket', 'pistol'], partition='IMIT')
     t1 = time.time()
-    trainer.train(D, PrimState.initial(), 200000, 4000, 100000, 64, 4, 10)
+    trainer.train(rfc, imit, PrimState.episode_len, 200000, 4000, 100000, 64, 4, 10)
     print("Training time: " + str(time.time() - t1))
 
     
 def virtual_expert_modeling():
-    PrimState.init_state_space(3, 64) 
+    PrimState.init_state_space() 
     x = torch.tensor([-1.0,-1.0,-1.0])
     y = torch.tensor([1.0,1.0,1.0])
     unit = torch.dist(x, y).item() / 16
@@ -107,8 +110,8 @@ if __name__ == "__main__":
     os.environ['DEVICE'] = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     t = time.time()
-    virtual_expert_modeling()
-    #test()
+    #virtual_expert_modeling()
+    test()
     print("Test time: " + str(time.time() - t))
 
     # old tests

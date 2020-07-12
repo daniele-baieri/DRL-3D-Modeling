@@ -15,8 +15,7 @@ from trimesh import Scene
 
 class PrimExpert(Expert):
 
-    def __init__(self, r: PrimReward, env: Environment):
-        self.__reward = r
+    def __init__(self, env: Environment):
         self.__env = env
 
     def poll(self, s: PrimState, prim: int, delete: bool) -> Experience:
@@ -29,7 +28,7 @@ class PrimExpert(Expert):
         for act in range(lo, hi): 
             A = self.__env.get_action(act)
             A.set_index(act)
-            new = self.__reward(s, A(s))
+            new = self.__env.eval_reward(s, A(s))
             if best is None or new > best:
                 best = new
                 bestAct = A

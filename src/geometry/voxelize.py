@@ -2,6 +2,9 @@ import torch
 
 
 def voxelize(x: torch.FloatTensor, grid_size: int) -> torch.LongTensor:
+    """
+    Efficient point cloud voxelization. 
+    """
     x_min, x_max = x.min(), x.max()
     pitch = (x_max - x_min) / grid_size
     

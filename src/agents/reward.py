@@ -1,3 +1,4 @@
+import torch
 from agents.state import State
 
 
@@ -9,5 +10,5 @@ class Reward:
     def _forward(self, old: State, new: State) -> float:
         raise NotImplementedError
 
-    def __call__(self, old: State, new: State) -> float:
-        return self._forward(old, new)
+    def __call__(self, old: State, new: State, model: torch.LongTensor) -> float:
+        return self._forward(old, new, model)

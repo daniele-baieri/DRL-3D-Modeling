@@ -22,13 +22,17 @@ class PrimState(State):
     __last_cube_size = 0
     __last_num_prims = 0
 
-    def __init__(self, prim: List[Cuboid]):
+    def __init__(self, prim: List[Cuboid], reference: torch.FloatTensor, step: int):
         #assert len(prim) == pow(self.num_primitives, 3)
         self.__primitives = prim
         self.__geom_cache = None
         self.__mesh_cache = None
-        self.__vox_list_cache = None
-        self.__vox_cache = None
+        #self.__vox_list_cache = None
+        #self.__vox_cache = None
+        self.__ref = reference
+        self.__step = torch.zeros(self.episode_len + 1, dtype=torch.long)
+        self.__step[step] = 1
+        self.__step_idx = step
 
     def __repr__(self) -> str:
         return repr(self.__primitives)
@@ -39,6 +43,8 @@ class PrimState(State):
     def to_geom_data(self) -> Data:
         if self.__geom_cache is None:
             self.__geom_cache = Cuboid.aggregate(self.__primitives)
+            self.__geom_cache.reference = self.__ref
+            self.__geom_cache.step = self.__step.unsqueeze(0)
         return self.__geom_cache
 
     def meshify(self) -> Trimesh: 
@@ -119,15 +125,17 @@ class PrimState(State):
     def get_primitives(self) -> List[Cuboid]:
         return copy.deepcopy(self.__primitives)
 
-    '''
-    def is_legal_action(self, prim: int, vert: int, axis: int, slide: float) -> bool:
-        verts = self.__primitives[prim].get_pivots()
-        new_val = verts[vert, axis] + slide
-        return new_val >= self.min_coord and new_val <= self.max_coord
-    '''
+    def get_reference(self) -> torch.FloatTensor:
+        return self.__ref
+
+    def get_step(self) -> int:
+        return self.__step_idx
+
+    def get_step_onehot(self) -> torch.LongTensor:
+        return self.__step
 
     @classmethod
-    def init_state_space(cls, prim: int, voxelization_grid: int, max_coord_abs: float=1.0) -> None:
+    def init_state_space(cls, prim: int=3, voxelization_grid: int=64, episode_len: int=300, max_coord_abs: float=1.0) -> None:
         assert prim > 0 and voxelization_grid > 0 and max_coord_abs > 0
         cls.num_primitives = prim ** 3
         cls.prims_per_side = prim
@@ -136,9 +144,10 @@ class PrimState(State):
         cls.cube_side_len = (cls.max_coord - cls.min_coord) / prim
         cls.voxel_grid_side = voxelization_grid
         cls.voxel_side = (cls.max_coord - cls.min_coord) / (cls.voxel_grid_side - 1)
+        cls.episode_len = episode_len
 
     @classmethod
-    def initial(cls) -> PrimState:
+    def initial(cls, ref: torch.FloatTensor) -> PrimState:
         # NOTE: this occupies the space [[-1 1][-1 1][-1 1]]
         # Since ShapeNet meshes are normalized in [-1 1]
         if cls.__initial_state_cache is not None and \
@@ -152,19 +161,10 @@ class PrimState(State):
             Cuboid(torch.stack([tup, tup + cls.cube_side_len]))
             for tup in torch.cartesian_prod(r, r, r)
         ]
-        init = PrimState(cubes)
+        init = PrimState(cubes, ref, 0)
         if cls.__initial_state_cache is None:
             cls.__initial_state_cache = init
             cls.__last_cube_size = cls.cube_side_len
             cls.__last_num_prims = cls.num_primitives
         return init
-        
-    '''
-    def tensorize(self) -> torch.FloatTensor: # NOTE: this might just go to the trash
-        if len(self.__primitives) == 0:
-            return torch.empty(0)
-        else:
-            return torch.stack(
-                [x.get_pivots() for x in self.__primitives]
-            )
-    '''
+ 

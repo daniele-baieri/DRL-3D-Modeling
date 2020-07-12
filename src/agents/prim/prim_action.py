@@ -48,11 +48,10 @@ class PrimAction(Action):
             return s
         if self.__delete:
             prims[self.__prim] = None
-            return PrimState(prims)
         else:
             c = prims[self.__prim]
             prims[self.__prim] = c.slide(self.__vert, self.__axis, self.__slide)
-            return PrimState(prims)
+        return PrimState(prims, s.get_reference(), s.get_step() + 1)
 
     def get_index(self) -> int:
         return self.__idx

@@ -17,14 +17,13 @@ class PrimReward(Reward):
         self.__valid_cache = False
     
         
-    def _forward(self, old: PrimState, new: PrimState) -> float:
+    def _forward(self, old: PrimState, new: PrimState, model: torch.LongTensor) -> float:
         assert old is not None and new is not None
         if len(new) == 0:
             return -1
         l = PrimState.voxel_grid_side ** 3
-        O = BaseModel.get_model()
         target = torch.zeros(l, dtype=torch.bool).to(os.environ['DEVICE'])
-        target[O] = 1
+        target[model] = 1
 
         self.__voxels_cache = new.voxelize(cubes=True)
         self.__valid_cache = True
@@ -46,9 +45,11 @@ class PrimReward(Reward):
         else:
             state = s.voxelize(cubes=False)
         #s.meshify().show()
-        if torch.max(state) > 262144:
-            s.meshify().show()
-            return
+
+        #if torch.max(state) > 262144:
+        #    s.meshify().show()
+        #    return
+        
         #t = time.time()
         res = self.__compute_iou(state, target)
         #print("IOU TIME: " + str(time.time() - t))

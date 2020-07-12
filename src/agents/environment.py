@@ -1,3 +1,5 @@
+import torch
+
 from typing import List, Tuple
 from agents.state import State
 from agents.action import Action
@@ -11,6 +13,7 @@ class Environment:
         self.__current = None
         self.__act_space = act_space
         self.__reward = reward
+        self.__target = None
 
     def transition(self, act: Action) -> Tuple[State, float]:
         assert self.__current is not None and act is not None
@@ -30,6 +33,12 @@ class Environment:
     def get_action(self, idx: int) -> Action:
         assert idx >= 0
         return self.__act_space[idx]
+
+    def set_target(self, voxels: torch.LongTensor) -> None:
+        self.__target = voxels
+
+    def eval_reward(self, curr: State, succ: State) -> float:
+        return self.__reward(curr, succ, self.__target)
 
     def reset(self) -> Action:
         self.__current = None

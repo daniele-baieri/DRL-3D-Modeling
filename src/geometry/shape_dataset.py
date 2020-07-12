@@ -21,7 +21,6 @@ from torch_geometric.transforms import FaceToEdge
 from torch_geometric.nn.pool import voxel_grid
 from torch_geometric.utils import to_trimesh, from_trimesh
 
-
 from agents.base_model import BaseModel
 from geometry.voxelize import voxelize
 
@@ -47,7 +46,13 @@ label_to_synset = {v: k for k, v in synset_to_label.items()}
 class ShapeDataset(Dataset):
 
     def __init__(self, path: str, categories: List[str]=['chair'], 
-                 train: bool=True, split: float=.8, voxel_grid_side: int=64):
+                 partition: str='RFC', train_split: float=.9, imit_split: float=.1,
+                 voxel_grid_side: int=64):
+        """
+        @param partition: string in {'RFC', 'IMIT', 'TEST'} (resp. reinforcement, imitation, testing).
+        @param train_split: portion of data used for training. 1-@train_split = portion of data used for testing.
+        @param imit_split: portion of data used for imitation learning. 1-@imit_split = portion of data used for reinforcement learning.
+        """
         self.root = Path(path)
         self.paths = []
         self.synset_idxs = []
@@ -68,9 +73,11 @@ class ShapeDataset(Dataset):
 
             # find all objects in the class
             models = sorted(class_target.glob('*'))
-            stop = int(len(models) * split)
-            if train:
+            stop = int(len(models) * train_split)
+            if partition == 'RFC' or partition == 'IMIT':
                 models = models[:stop]
+                stop = int(len(models) * imit_split)
+                models = models[:stop] if partition == 'IMIT' else models[stop:]
             else:
                 models = models[stop:]
             self.paths += models
@@ -90,13 +97,12 @@ class ShapeDataset(Dataset):
         model = load_binvox(open(obj_location, 'rb'))
         #model.show()
         #print(len(model.points))
-        voxels = torch.from_numpy(model.points).to(os.environ['DEVICE'])
+        voxels = torch.from_numpy(model.points)#.to(os.environ['DEVICE'])
         voxels = voxelize(voxels, 64)
         #print(voxels.sum())
 
         image = Image.open(render)
-        reference = TF.to_tensor(image)
-        reference = reference.unsqueeze(0)
+        reference = TF.to_tensor(TF.resize(TF.to_grayscale(image), size=(120, 120)))
 
         return {'target': model, 'mesh': voxels.bool(), 'reference': reference}
 

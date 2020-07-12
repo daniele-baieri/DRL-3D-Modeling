@@ -1,5 +1,6 @@
 import sys
 import torch
+import torch.nn as nn
 from typing import List
 
 from torch.nn import Conv2d, ReLU, BatchNorm2d, MaxPool2d, Linear, ELU, Softmax
@@ -14,10 +15,11 @@ from agents.prim.prim_state import PrimState
 
 class PrimModel(BaseModel):
 
-    def __init__(self, ep_len: int, act_space_size: int):
+    def __init__(self, act_space_size: int):
         super(PrimModel, self).__init__()
 
-        self.set_episode_len(ep_len)
+        #self.set_episode_len(ep_len)
+        self.ep_len = PrimState.episode_len
 
         #NOTE: what about some dropout?
         
@@ -27,18 +29,18 @@ class PrimModel(BaseModel):
         self.softmax = Softmax(dim=1)
 
         # 1. Depth map processing stream
-        # A standard convolutional image processing network. No batching: follows current episode.
+        # A standard convolutional image processing network.
         self.conv1 = Conv2d(1, 16, 3, padding=1)
         self.conv2 = Conv2d(16, 32, 3, padding=1)
         self.conv3 = Conv2d(32, 64, 3, padding=1)
         self.pool1 = MaxPool2d(5)
         self.pool2 = MaxPool2d(3)
-        self.flatbn1 = BatchNorm2d(16) #Do we REALLY need this? We always process 1 image at a time! B=1
+        self.flatbn1 = BatchNorm2d(16) 
         self.flatbn2 = BatchNorm2d(32)
         self.flatbn3 = BatchNorm2d(64)
 
         # 2. State processing stream
-        # A GMM convolutional network. Actually processing the batched input to the network.
+        # A GMM convolutional network. 
         self.GMM1 = GMMConv(3, 16, 2, 5)
         self.GMM2 = GMMConv(16, 32, 2, 5)
         self.GMM3 = GMMConv(32, 64, 2, 5)
@@ -49,8 +51,8 @@ class PrimModel(BaseModel):
         self.fc1 = Linear(64, 256)
 
         # 3. Step processing stream
-        # Simple FC layer. Also, no batching (follows current episode) 
-        self.fc2 = Linear(ep_len, 256)
+        # Simple FC layer.
+        self.fc2 = Linear(self.ep_len, 256)
 
         # 4. Concatenation layer
         self.fc3 = Linear(256 * 3, act_space_size)
@@ -58,16 +60,16 @@ class PrimModel(BaseModel):
 
     def forward(self, state_batch: Batch) -> torch.Tensor:
 
-        batch_size = state_batch.num_graphs
+        #batch_size = state_batch.num_graphs
 
-        x_1 = BaseModel.get_reference().unsqueeze(0).unsqueeze(1)
+        x_1 = state_batch.reference.unsqueeze(1)
         x_1 = self.conv1(x_1)
         x_1 = self.relu(self.flatbn1(self.pool1(x_1)))
         x_1 = self.conv2(x_1)
         x_1 = self.relu(self.flatbn2(self.pool2(x_1)))
         x_1 = self.conv3(x_1)
-        x_1 = self.relu(self.flatbn3(self.pool2(x_1))).flatten()
-        x_1 = x_1.repeat(batch_size, 1)
+        x_1 = self.relu(self.flatbn3(self.pool2(x_1))).view(x_1.shape[0], -1)
+        #x_1 = x_1.repeat(batch_size, 1)
 
         pos = state_batch.pos
         edges = state_batch.edge_index
@@ -80,10 +82,8 @@ class PrimModel(BaseModel):
         #print(x_2.shape)
         x_2 = self.elu(self.fc1(x_2))
   
-        x_3 = torch.zeros(self.get_episode_len())
-        x_3[self.get_step()] = 1
-        x_3 = self.relu(self.fc2(x_3))
-        x_3 = x_3.repeat(batch_size, 1)
+        x_3 = self.relu(self.fc2(state_batch.step))
+        #x_3 = x_3.repeat(batch_size, 1)
 
         #print(x_1.shape, x_2.shape, x_3.shape)
 
@@ -91,3 +91,7 @@ class PrimModel(BaseModel):
         #print(x.shape)
         x = self.fc3(x)
         return self.softmax(x)
+
+    
+    def get_initial_state(self, ref: torch.FloatTensor) -> PrimState:
+        return PrimState.initial(ref)
