@@ -56,31 +56,32 @@ def test():
 
     trainer = DoubleDQNTrainer(online, target, env, opt, exp, 0.999)
 
-    D = ShapeDataset('../data/ShapeNet', categories=['rifle'])
+    D = ShapeDataset('../data/ShapeNet', categories=['camera'])
     t1 = time.time()
     trainer.train(D, PrimState.initial(), 200000, 4000, 100000, 64, 4, 10)
     print("Training time: " + str(time.time() - t1))
 
     
 def virtual_expert_modeling():
-    PrimState.init_state_space(3, 64) #weird result with different max_coord_abs
+    PrimState.init_state_space(3, 64) 
     x = torch.tensor([-1.0,-1.0,-1.0])
     y = torch.tensor([1.0,1.0,1.0])
     unit = torch.dist(x, y).item() / 16
     PrimAction.init_action_space(PrimState.num_primitives, 2, [-2 * unit, -unit, unit, 2 * unit])
 
-    R = PrimReward(0.1, 0.001)
+    R = PrimReward(0.1, 0.01)
     env = Environment(PrimAction.ground(), R)
     exp = PrimExpert(R, env)
 
     M = PrimModel(10, PrimAction.act_space_size)
-    D = ShapeDataset('../data/ShapeNet', categories=['rifle'])
+    D = ShapeDataset('../data/ShapeNet', categories=['pistol'])
     import random
     idx = random.randint(1, 10)
     episode = D[idx]
     BaseModel.new_episode(episode['reference'], episode['mesh'])
 
     current = PrimState.initial()
+    current.meshify()
     
     experiences = exp.unroll(current, 27 * 4)
     actions = [e.get_action() for e in experiences]
@@ -106,8 +107,8 @@ if __name__ == "__main__":
     os.environ['DEVICE'] = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     t = time.time()
-    #virtual_expert_modeling()
-    test()
+    virtual_expert_modeling()
+    #test()
     print("Test time: " + str(time.time() - t))
 
     # old tests

@@ -42,7 +42,7 @@ class PrimExpert(Expert):
         res = []
         curr = s
         P = PrimState.num_primitives
-        for step in range(max_steps):
+        for step in tqdm(range(max_steps)):
             exp = self.poll(curr, step%P, step > max_steps//2)
             succ = exp.get_destination()
             assert len(succ) > 0

@@ -8,6 +8,9 @@ import os
 from typing import List, Dict, Union
 from pathlib import Path
 
+from PIL import Image
+import torchvision.transforms.functional as TF
+
 from trimesh.exchange.binvox import load_binvox#parse_binvox, voxel_from_binvox
 
 from torch.utils.data import Dataset
@@ -82,25 +85,20 @@ class ShapeDataset(Dataset):
         # return 3D shape (mesh) and reference
         # label = self.labels[self.synset_idxs[idx]]
         obj_location = self.paths[idx] / 'models/model_normalized.solid.binvox'#model_normalized.obj'
+        render = self.paths[idx] / 'models/model_render.png'
 
-        #mesh = self.read_obj(obj_location)
-        #to_trimesh(mesh).show()
         model = load_binvox(open(obj_location, 'rb'))
-        #voxels.show()
-        print(len(model.points))
+        #model.show()
+        #print(len(model.points))
         voxels = torch.from_numpy(model.points).to(os.environ['DEVICE'])
-        #print(voxels.shape)
-        # mesh = self.edge_transform(mesh)
-    
-        # NOTE: this should officially work. spoiler: it didn't work
-
-        #mesh = to_trimesh(mesh)
-        #voxels = mesh.voxelized(pitch)
-        #voxels.show()
-
         voxels = voxelize(voxels, 64)
-        print(voxels.sum())
-        return {'target': model, 'mesh': voxels.bool(), 'reference': torch.rand((120, 120))}
+        #print(voxels.sum())
+
+        image = Image.open(render)
+        reference = TF.to_tensor(image)
+        reference = reference.unsqueeze(0)
+
+        return {'target': model, 'mesh': voxels.bool(), 'reference': reference}
 
     def __convert_categories(self, categories):
         assert categories is not None, 'List of categories empty'

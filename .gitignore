@@ -6,6 +6,12 @@
 *.vpp.lck
 *.vpp.bak*
 .vscode/
-*ModelNet*
-*ShapeNet*
+data/ModelNet/
+*screenshots/
+*images/
+*untitled/
+*.json
+*.mtl
+*.obj
+*.binvox
 *.zip
