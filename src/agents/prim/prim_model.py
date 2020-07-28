@@ -19,7 +19,7 @@ class PrimModel(BaseModel):
         super(PrimModel, self).__init__()
 
         #self.set_episode_len(ep_len)
-        self.ep_len = PrimState.episode_len
+        self.ep_len = PrimState.episode_len + 1
 
         #NOTE: what about some dropout?
         
@@ -82,7 +82,7 @@ class PrimModel(BaseModel):
         #print(x_2.shape)
         x_2 = self.elu(self.fc1(x_2))
   
-        x_3 = self.relu(self.fc2(state_batch.step))
+        x_3 = self.relu(self.fc2(state_batch.step.float()))
         #x_3 = x_3.repeat(batch_size, 1)
 
         #print(x_1.shape, x_2.shape, x_3.shape)
@@ -90,7 +90,7 @@ class PrimModel(BaseModel):
         x = torch.cat([x_1, x_2, x_3], dim=1)
         #print(x.shape)
         x = self.fc3(x)
-        return self.softmax(x)
+        return x
 
     
     def get_initial_state(self, ref: torch.FloatTensor) -> PrimState:

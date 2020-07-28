@@ -56,7 +56,7 @@ def test():
     opt = Adam(online.parameters(), 0.0001)
     exp = PrimExpert(env)
 
-    trainer = DoubleDQNTrainer(online, target, env, opt, exp, 0.999, device)
+    trainer = DoubleDQNTrainer(online, target, env, opt, exp, 0.999, 0.8, device)
 
     rfc = ShapeDataset('../data/ShapeNet', categories=['rocket', 'pistol'])
     imit = ShapeDataset('../data/ShapeNet', categories=['rocket', 'pistol'], partition='IMIT')

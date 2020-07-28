@@ -18,7 +18,7 @@ class Environment:
     def transition(self, act: Action) -> Tuple[State, float]:
         assert self.__current is not None and act is not None
         res = act(self.__current)
-        rew = self.__reward(self.__current, res)
+        rew = self.__reward(self.__current, res, self.__target)
         self.set_state(res)
         return res, rew
 

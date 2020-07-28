@@ -23,14 +23,15 @@ class DoubleDQNTrainer:
 
     def __init__(self, online: BaseModel, target: BaseModel,
                  env: Environment, opt: Optimizer, exp: Expert,
-                 disc_fact: float, device: str):
-        assert disc_fact >= 0.0 and disc_fact <= 1.0
+                 disc_fact: float, exp_margin: float, device: str):
+        assert disc_fact >= 0.0 and disc_fact <= 1.0 and exp_margin >= 0.0 and exp_margin <= 1.0
 
         self.__env = env
         self.__opt = opt
         self.__exp = exp
         # self.__rl_buf = buf
         self.__gamma = disc_fact
+        self.__margin = exp_margin
         self.__loss = SmoothL1Loss()
         self.__device = device
         self.__online = online.to(self.__device)
@@ -51,17 +52,17 @@ class DoubleDQNTrainer:
         for idx in range(iterations):
             for upd in range(updates):
                 batch = self.imitation_buffer.sample()
-                self.optimize_model(batch)
-            new_episode = self.unroll(initial)
+                self.optimize_model(batch, joint=True)
+            new_episode = self.unroll(initial, episode_len)
             D = self.__exp.relabel(new_episode)
             self.imitation_buffer.aggregate(D)
             
-    def reinforcement(self) -> None:
+    def reinforcement(self, episode_len: int) -> None:
         """
         Double DQN training algorithm: a single episode.
         """
         
-        for _ in range(self.__online.get_episode_len()):
+        for _ in range(episode_len):
 
             curr = self.__env.get_state()
             action = self.select_action(curr)
@@ -101,21 +102,30 @@ class DoubleDQNTrainer:
             self.__env.set_state(initial_state)
             self.__env.set_target(episode['mesh'])
 
-            self.reinforcement()
+            self.reinforcement(episode_len)
 
             self.__target.load_state_dict(self.__online.state_dict())
 
-    def optimize_model(self, batch: Dict[str, Union[Batch, torch.Tensor]]) -> None:
+    def optimize_model(self, batch: Dict[str, Union[Batch, torch.Tensor]], joint: bool=False) -> None:
         state_in = batch['src'].to(self.__device)
         next_in = batch['dest'].to(self.__device)
-        action_ids = batch['act'].unsqueeze(0).T
-        rewards = batch['r']
+        action_ids = batch['act'].unsqueeze(0).T.to(self.__device)
+        rewards = batch['r'].to(self.__device)
 
-        pred = self.__online(state_in).gather(1, action_ids)
-        next_val = self.__target(next_in).max(dim=-1)[0].detach()
+        model_out = self.__online(state_in)
+        pred = model_out.gather(1, action_ids)
+        next_val = self.__target(next_in).max(dim=-1)[0].detach()   
         exp_act_val = (self.__gamma * next_val) + rewards
 
         loss = self.__loss(pred, exp_act_val.unsqueeze(-1))
+
+        if joint:
+            margins = torch.zeros_like(model_out, device=self.__device)
+            margins[range(len(action_ids)), action_ids.T] = self.__margin
+            best_q = (model_out + margins).max(dim=-1)[0]
+            diff = self.__loss(best_q, pred.T)
+            loss += diff
+
         print("Current loss: "+str(loss.item()))
         self.__opt.zero_grad()
         loss.backward()
@@ -123,15 +133,15 @@ class DoubleDQNTrainer:
 
     def select_action(self, s: State) -> Action:
         b = Batch.from_data_list([polar(s.to_geom_data())])
-        pred = torch.argmax(self.__online(b), -1).item()
+        pred = torch.argmax(self.__online(b.to(self.__device)), -1).item()
         action = self.__env.get_action(pred)
         action.set_index(pred)
         return action
 
-    def unroll(self, s: State) -> List[Experience]:
+    def unroll(self, s: State, episode_len: int) -> List[Experience]:
         res = []
         self.__env.set_state(s)
-        for _ in range(self.__online.get_episode_len()):
+        for _ in range(episode_len):
             curr = self.__env.get_state()
             act = self.select_action(curr)
             succ, r = self.__env.transition(act)
