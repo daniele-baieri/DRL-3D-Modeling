@@ -41,7 +41,6 @@ class DoubleDQNTrainer:
         self.__target = target.to(self.__device)
         self.__target.eval()
         self.__loss = SmoothL1Loss().to(self.__device)
-
         
     def imitation(self, iterations: int, updates: int, episode_len: int) -> None:
         """
@@ -77,7 +76,6 @@ class DoubleDQNTrainer:
             batch = next(iter(self.reinforcement_buffer))
             self.optimize_model(batch)
 
-
     def train(self, rfc_data: ShapeDataset, imit_data: ShapeDataset, episode_len: int,
             long_mem: int, short_mem: int, rl_mem: int, batch_size: int,
             dagger_iter: int, dagger_updates: int, dump_path: str) -> None:
@@ -85,6 +83,7 @@ class DoubleDQNTrainer:
         Main training loop. Trains a neural network using the Double DQN algorithm, 
         with a first phase of imitation learning using the DAgger algorithm.
         """
+        assert short_mem == episode_len
 
         self.imitation_buffer = LongShortMemory(long_mem, short_mem, episode_len, batch_size)
         rl_mem = ReplayBuffer(rl_mem)

@@ -13,7 +13,7 @@ class LongShortMemory:
         self.long_memory = ReplayBuffer(long_size)
         self.short_memory = ReplayBuffer(short_size)
         self.short_loader = RBDataLoader(self.short_memory, ep_len, batch_size // 2)
-        long_batch = batch_size // 2 if batch_size % 2 == 1 else batch_size // 2 + 1
+        long_batch = batch_size // 2 if batch_size % 2 == 0 else batch_size // 2 + 1
         self.long_loader = RBDataLoader(self.long_memory, ep_len, long_batch)
 
     def aggregate(self, D: List[Experience]) -> None:
