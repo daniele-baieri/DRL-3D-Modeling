@@ -45,7 +45,7 @@ label_to_synset = {v: k for k, v in synset_to_label.items()}
 
 class ShapeDataset(Dataset):
 
-    def __init__(self, path: str, categories: List[str]=['chair'], 
+    def __init__(self, path: str, items_per_category: Dict[str, int], 
                  partition: str='RFC', train_split: float=.9, imit_split: float=.1,
                  voxel_grid_side: int=64):
         """
@@ -57,9 +57,10 @@ class ShapeDataset(Dataset):
         self.paths = []
         self.synset_idxs = []
         self.voxel_grid_side = voxel_grid_side
-        self.synsets = self.__convert_categories(categories)
+        synset_names = list(items_per_category.keys())
+        self.synsets = self.__convert_categories(synset_names)
         self.labels = [synset_to_label[s] for s in self.synsets]
-        self.edge_transform = FaceToEdge(remove_faces=False)
+        #self.edge_transform = FaceToEdge(remove_faces=False)
 
         # loops through desired classes
         for i in range(len(self.synsets)):
@@ -73,6 +74,7 @@ class ShapeDataset(Dataset):
 
             # find all objects in the class
             models = sorted(class_target.glob('*'))
+            models = models[:items_per_category[synset_names[i]]]
             stop = int(len(models) * train_split)
             if partition == 'RFC' or partition == 'IMIT':
                 models = models[:stop]
@@ -90,7 +92,7 @@ class ShapeDataset(Dataset):
 
     def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
         # return 3D shape (mesh) and reference
-        # label = self.labels[self.synset_idxs[idx]]
+
         obj_location = self.paths[idx] / 'models/model_normalized.solid.binvox'#model_normalized.obj'
         render = self.paths[idx] / 'models/model_render.png'
 
@@ -148,36 +150,3 @@ class ShapeDataset(Dataset):
                 yield ['f', [int(t.split("/")[0]) - 1 for t in triangles]]
             else:
                 yield ['', ""]
-
-
-    '''
-    def __as_mesh(self, scene_or_mesh: Union[Trimesh, Scene]) -> Trimesh:
-        """
-        Convert a possible scene to a mesh.
-
-        If conversion occurs, the returned mesh has only vertex and face data.
-        """
-        if isinstance(scene_or_mesh, Scene):
-            if len(scene_or_mesh.geometry) == 0:
-                mesh = None  # empty scene
-            else:
-                # we lose texture information here
-                mesh = trimesh.util.concatenate(
-                    tuple(trimesh.Trimesh(vertices=g.vertices, faces=g.faces)
-                        for g in scene_or_mesh.geometry.values()))
-        else:
-            assert(isinstance(mesh, trimesh.Trimesh))
-            mesh = scene_or_mesh
-        return mesh
-    '''
-    '''
-    def __align_and_resize(self, voxels: VoxelGrid) -> None:
-        S = torch.cat((torch.from_numpy(voxels.scale.copy()).float(), torch.tensor([1.0])), 0) 
-        #print(S)
-        T = torch.diag(torch.pow(S, -1))
-        voxels.apply_transform(T)
-        T = torch.eye(4)
-        T[[0,1,2], -1] = -1 * torch.from_numpy(voxels.translation.copy()).float()
-        voxels.apply_transform(T)
-        #print(T)
-    '''

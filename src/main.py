@@ -53,15 +53,17 @@ def test():
     target.load_state_dict(online.state_dict())
     target.eval()
     
-    opt = Adam(online.parameters(), 0.0001)
+    opt = Adam(online.parameters(), 0.00008)
     exp = PrimExpert(env)
 
-    trainer = DoubleDQNTrainer(online, target, env, opt, exp, 0.999, 0.8, device)
+    trainer = DoubleDQNTrainer(online, target, env, opt, exp, 0.999, 0.8, 400, 0.02, device)
 
-    rfc = ShapeDataset('../data/ShapeNet', categories=['rocket', 'pistol'])
-    imit = ShapeDataset('../data/ShapeNet', categories=['rocket', 'pistol'], partition='IMIT')
+    rfc = ShapeDataset('../data/ShapeNet', items_per_category={'rocket': 200, 'pistol': 200})
+    imit = ShapeDataset('../data/ShapeNet', items_per_category={'rocket': 200, 'pistol': 200}, partition='IMIT')
+    print("IMITATION DATA: " + str(len(imit)) + " instances")
+    print("REINFORCEMENT DATA: " + str(len(rfc)) + " instances")
     t1 = time.time()
-    trainer.train(rfc, imit, PrimState.episode_len, 200000, 4000, 100000, 64, 4, 10)
+    trainer.train(rfc, imit, PrimState.episode_len, 200000, 4000, 100000, 64, 4, 10, '../model/PRIM.th')
     print("Training time: " + str(time.time() - t1))
 
     

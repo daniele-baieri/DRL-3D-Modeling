@@ -21,22 +21,25 @@ from geometry.shape_dataset import ShapeDataset
 
 class DoubleDQNTrainer:
 
-    def __init__(self, online: BaseModel, target: BaseModel,
-                 env: Environment, opt: Optimizer, exp: Expert,
-                 disc_fact: float, exp_margin: float, device: str):
-        assert disc_fact >= 0.0 and disc_fact <= 1.0 and exp_margin >= 0.0 and exp_margin <= 1.0
-
+    def __init__(self, online: BaseModel, target: BaseModel, env: Environment, 
+                 opt: Optimizer, exp: Expert, disc_fact: float, exp_margin: float,
+                 update_frequency: int, eps_greedy: float, device: str):
+        assert disc_fact >= 0.0 and disc_fact <= 1.0 and exp_margin >= 0.0 and exp_margin <= 1.0 and
+            eps_greedy >= 0 and eps_greedy <= 1.0
+            
+        self.__opt_counter = 0
         self.__env = env
         self.__opt = opt
         self.__exp = exp
-        # self.__rl_buf = buf
         self.__gamma = disc_fact
+        self.__tau = update_frequency
+        self.__epsilon = eps_greedy
         self.__margin = exp_margin
-        self.__loss = SmoothL1Loss()
         self.__device = device
         self.__online = online.to(self.__device)
         self.__target = target.to(self.__device)
         self.__target.eval()
+        self.__loss = SmoothL1Loss().to(self.__device)
 
         
     def imitation(self, iterations: int, updates: int, episode_len: int) -> None:
@@ -76,7 +79,7 @@ class DoubleDQNTrainer:
 
     def train(self, rfc_data: ShapeDataset, imit_data: ShapeDataset, episode_len: int,
             long_mem: int, short_mem: int, rl_mem: int, batch_size: int,
-            dagger_iter: int, dagger_updates: int) -> None:
+            dagger_iter: int, dagger_updates: int, dump_path: str) -> None:
         """
         Main training loop. Trains a neural network using the Double DQN algorithm, 
         with a first phase of imitation learning using the DAgger algorithm.
@@ -95,8 +98,6 @@ class DoubleDQNTrainer:
 
             self.imitation(dagger_iter, dagger_updates, episode_len)
 
-            #self.__target.load_state_dict(self.__online.state_dict())
-
         for episode in rfc_data:
             initial_state = self.__online.get_initial_state(episode['reference'])
             self.__env.set_state(initial_state)
@@ -104,9 +105,12 @@ class DoubleDQNTrainer:
 
             self.reinforcement(episode_len)
 
-            self.__target.load_state_dict(self.__online.state_dict())
-
     def optimize_model(self, batch: Dict[str, Union[Batch, torch.Tensor]], joint: bool=False) -> None:
+
+        if self.__opt_counter % self.__tau == 0:
+            self.__target.load_state_dict(self.__online.state_dict())
+        self.__opt_counter += 1
+
         state_in = batch['src'].to(self.__device)
         next_in = batch['dest'].to(self.__device)
         action_ids = batch['act'].unsqueeze(0).T.to(self.__device)
@@ -132,10 +136,14 @@ class DoubleDQNTrainer:
         self.__opt.step()
 
     def select_action(self, s: State) -> Action:
-        b = Batch.from_data_list([polar(s.to_geom_data())])
-        pred = torch.argmax(self.__online(b.to(self.__device)), -1).item()
-        action = self.__env.get_action(pred)
-        action.set_index(pred)
+        r = torch.rand(1).item()
+        if r >= self.__epsilon: # greedy policy         
+            b = Batch.from_data_list([polar(s.to_geom_data())])
+            pred = torch.argmax(self.__online(b.to(self.__device)), -1).item()
+            action = self.__env.get_action(pred)
+            action.set_index(pred)
+        else: # random policy
+            action = self.__env.get_random_action()
         return action
 
     def unroll(self, s: State, episode_len: int) -> List[Experience]:

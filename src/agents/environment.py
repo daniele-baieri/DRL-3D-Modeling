@@ -34,6 +34,12 @@ class Environment:
         assert idx >= 0
         return self.__act_space[idx]
 
+    def get_random_action(self) -> Action:
+        idx = torch.randint(len(self.__act_space), (1,)).item()
+        act = self.__act_space[idx]
+        act.set_index(idx)
+        return act
+
     def set_target(self, voxels: torch.LongTensor) -> None:
         self.__target = voxels
 
