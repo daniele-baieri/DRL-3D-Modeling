@@ -81,7 +81,7 @@ class Cuboid(Primitive):
         X_valid = X[(X >= min_coord[0]) & (X <= max_coord[0])]
         Y_valid = Y[(Y >= min_coord[1]) & (Y <= max_coord[1])]
         Z_valid = Z[(Z >= min_coord[2]) & (Z <= max_coord[2])]
-        return torch.cartesian_prod(X_valid, Y_valid, Z_valid).to(os.environ['DEVICE'])
+        return torch.cartesian_prod(X_valid, Y_valid, Z_valid)#.to(os.environ['DEVICE'])
 
     #def voxelized(self, )
 

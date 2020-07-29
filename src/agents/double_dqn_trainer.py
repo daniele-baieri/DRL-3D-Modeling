@@ -24,8 +24,9 @@ class DoubleDQNTrainer:
     def __init__(self, online: BaseModel, target: BaseModel, env: Environment, 
                  opt: Optimizer, exp: Expert, disc_fact: float, exp_margin: float,
                  update_frequency: int, eps_greedy: float, device: str):
-        assert disc_fact >= 0.0 and disc_fact <= 1.0 and exp_margin >= 0.0 and exp_margin <= 1.0 and
-            eps_greedy >= 0 and eps_greedy <= 1.0
+        assert disc_fact >= 0.0 and disc_fact <= 1.0 
+        assert exp_margin >= 0.0 and exp_margin <= 1.0 
+        assert eps_greedy >= 0 and eps_greedy <= 1.0
             
         self.__opt_counter = 0
         self.__env = env

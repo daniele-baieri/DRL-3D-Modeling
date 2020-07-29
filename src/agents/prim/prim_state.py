@@ -56,7 +56,7 @@ class PrimState(State):
             )
         return self.__mesh_cache
 
-    def voxelize(self, cubes: bool=False) -> Union[torch.LongTensor, List[torch.LongTensor]]:
+    def voxelize(self, cubes: bool=False, use_cuda: bool=False) -> Union[torch.LongTensor, List[torch.LongTensor]]:
         """
         Efficient voxelization for union of cuboids shapes.
         """
@@ -64,10 +64,11 @@ class PrimState(State):
         #    return self.__vox_list_cache
         #elif not cubes and self.__vox_cache is not None:
         #    return self.__vox_cache
+        device = 'cuda' if use_cuda else 'cpu'
 
         prims = self.get_live_primitives()
 
-        point_cloud = torch.cat([c.to_geom_data().pos for c in prims])        
+        point_cloud = torch.cat([c.to_geom_data().pos for c in prims]).to(device)   
         min_comp = point_cloud.min()
         max_comp = point_cloud.max()
         pitch = (max_comp - min_comp) / (self.voxel_grid_side)#(self.max_coord - self.min_coord) / (self.voxel_grid_side) #
@@ -78,24 +79,24 @@ class PrimState(State):
 
         #subdivisions = [c.subdivide(vox_space, vox_space, vox_space) for c in prims]
         if not cubes:
-            G = torch.zeros(self.voxel_grid_side, self.voxel_grid_side, self.voxel_grid_side, dtype=torch.long)
+            G = torch.zeros(self.voxel_grid_side, self.voxel_grid_side, self.voxel_grid_side, dtype=torch.long).to(device)   
         else:
             G = []
 
         for c in prims:
-            verts = c.get_pivots()
+            verts = c.get_pivots().to(device)   
             VOX = torch.floor((verts - min_comp) / pitch).long()
             if not cubes:
                 G[VOX[0,0]:VOX[1,0], VOX[0,1]:VOX[1,1], VOX[0,2]:VOX[1,2]] = 1
             else:
-                H = torch.zeros(self.voxel_grid_side, self.voxel_grid_side, self.voxel_grid_side, dtype=torch.long)
+                H = torch.zeros(self.voxel_grid_side, self.voxel_grid_side, self.voxel_grid_side, dtype=torch.long).to(device)   
                 H[VOX[0,0]:VOX[1,0], VOX[0,1]:VOX[1,1], VOX[0,2]:VOX[1,2]] = 1
                 G.append(H.flatten())
         
         if cubes:
-            return torch.stack(G).to(os.environ['DEVICE'])
+            return torch.stack(G)
         else:
-            return G.flatten().to(os.environ['DEVICE'])
+            return G.flatten()
         '''
         if cubes:
             # NOTE: unique concatenation of all these voxel grids == (cubes == False)

@@ -11,26 +11,29 @@ from agents.base_model import BaseModel
 
 class PrimReward(Reward):
 
-    def __init__(self, alpha_1: float, alpha_2: float):
+    def __init__(self, alpha_1: float, alpha_2: float, device: str):
         self.__alpha_1 = alpha_1
         self.__alpha_2 = alpha_2
         self.__single_vox_volume = math.pow(PrimState.voxel_side, 3)
         self.__valid_cache = False
+        self.__device = device
     
-        
     def _forward(self, old: PrimState, new: PrimState, model: torch.LongTensor) -> float:
+        
         assert old is not None and new is not None
         if len(new) == 0:
             return -1
+        cuda = self.__device == 'cuda'
+
         l = PrimState.voxel_grid_side ** 3
-        target = torch.zeros(l, dtype=torch.bool).to(os.environ['DEVICE'])
+        target = torch.zeros(l, dtype=torch.bool).to(self.__device)
         target[model] = 1
 
-        self.__voxels_cache = new.voxelize(cubes=True)
+        self.__voxels_cache = new.voxelize(cubes=True, use_cuda=cuda)
         self.__valid_cache = True
         iou_new, iou_sum_new = self.iou(new, target), self.iou_sum(new, target)
 
-        self.__voxels_cache = old.voxelize(cubes=True)
+        self.__voxels_cache = old.voxelize(cubes=True, use_cuda=cuda)
         iou_old, iou_sum_old = self.iou(old, target), self.iou_sum(old, target)
         self.__valid_cache = False
 
