@@ -39,7 +39,7 @@ def test():
     
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-    PrimState.init_state_space(episode_len=10)
+    PrimState.init_state_space(episode_len=300)
     x = torch.tensor([-1.0,-1.0,-1.0])
     y = torch.tensor([1.0,1.0,1.0])
     unit = torch.dist(x, y).item() / 16
@@ -63,7 +63,7 @@ def test():
     print("IMITATION DATA: " + str(len(imit)) + " instances")
     print("REINFORCEMENT DATA: " + str(len(rfc)) + " instances")
     t1 = time.time()
-    trainer.train(rfc, imit, PrimState.episode_len, 200000, 10, 100000, 64, 4, 10, '../model/PRIM.pth')
+    trainer.train(rfc, imit, PrimState.episode_len, 200000, 100000, 64, 4, 500, '../model/PRIM.pth')
     print("Training time: " + str(time.time() - t1))
 
     
@@ -109,7 +109,7 @@ def virtual_expert_modeling():
 
 if __name__ == "__main__":
 
-    os.environ['DEVICE'] = 'cuda' if torch.cuda.is_available() else 'cpu'
+    #os.environ['DEVICE'] = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     t = time.time()
     #virtual_expert_modeling()

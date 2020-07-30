@@ -61,11 +61,6 @@ class PrimState(State):
         Efficient voxelization for union of cuboids shapes.
         """
 
-        #if cubes and self.__vox_list_cache is not None:
-        #    return self.__vox_list_cache
-        #elif not cubes and self.__vox_cache is not None:
-        #    return self.__vox_cache
-
         device = 'cuda' if use_cuda else 'cpu'
 
         prims = self.get_live_primitives()
@@ -81,7 +76,6 @@ class PrimState(State):
         else:
             G = torch.zeros(len(prims), L, L, L, dtype=torch.long, device=device)
 
-        # MAKE EFFICIENT PLS AND ADD CACHING
         idx = 0
         for c in prims:
             verts = c.get_pivots()#.to(device)   
@@ -96,28 +90,6 @@ class PrimState(State):
             return G.view(len(prims), -1)
         else:
             return G.flatten()
-        '''
-        if cubes:
-            # NOTE: unique concatenation of all these voxel grids == (cubes == False)
-            self.__vox_list_cache = [
-                torch.unique(
-                    voxel_grid(
-                        pc, torch.zeros(len(pc)), pitch, 
-                        min_comp + offset, max_comp-offset#self.min_coord + offset, self.max_coord - offset#
-                    ), 
-                    sorted=False
-                ) for pc in subdivisions if len(pc) > 0
-            ]
-            return self.__vox_list_cache
-        else:
-            sub_point_cloud = torch.cat(subdivisions).to(os.environ['DEVICE'])
-            voxelgrid = voxel_grid(
-                sub_point_cloud, torch.zeros(len(sub_point_cloud)), 
-                pitch, min_comp, max_comp-offset#self.min_coord+offset, self.max_coord-offset#
-            )
-            self.__vox_cache = torch.unique(voxelgrid, sorted=False)
-            return self.__vox_cache
-        '''
 
     def get_live_primitives(self) -> List[Cuboid]:
         return [c for c in self.__primitives if c is not None]
@@ -148,8 +120,7 @@ class PrimState(State):
 
     @classmethod
     def initial(cls, ref: torch.FloatTensor) -> PrimState:
-        # NOTE: this occupies the space [[-1 1][-1 1][-1 1]]
-        # Since ShapeNet meshes are normalized in [-1 1]
+
         if cls.__initial_state_cache is not None and \
             cls.__last_num_prims == cls.num_primitives and \
             cls.__last_cube_size == cls.cube_side_len: 

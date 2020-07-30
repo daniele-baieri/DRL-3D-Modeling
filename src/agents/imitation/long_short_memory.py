@@ -9,9 +9,9 @@ from agents.replay_buffer import ReplayBuffer, RBDataLoader
 
 class LongShortMemory:
 
-    def __init__(self, long_size: int, short_size: int, ep_len: int, batch_size: int):
+    def __init__(self, long_size: int, ep_len: int, batch_size: int):
         self.long_memory = ReplayBuffer(long_size)
-        self.short_memory = ReplayBuffer(short_size)
+        self.short_memory = ReplayBuffer(ep_len)
         self.short_loader = RBDataLoader(self.short_memory, ep_len, batch_size // 2)
         long_batch = batch_size // 2 if batch_size % 2 == 0 else batch_size // 2 + 1
         self.long_loader = RBDataLoader(self.long_memory, ep_len, long_batch)

@@ -57,8 +57,8 @@ class DoubleDQNTrainer:
         start = self.__exp.unroll(initial, episode_len)
         self.imitation_buffer.aggregate(start)
 
-        for idx in range(iterations):
-            progress_bar = tqdm(range(updates), desc=IMITATION_ITER.format(idx, 0.0))
+        progress_bar = tqdm(range(updates), desc=IMITATION_ITER.format(0, 0.0))
+        for idx in range(iterations):  
             for upd in progress_bar:
                 batch = self.imitation_buffer.sample()
                 l = self.optimize_model(batch, joint=True)
@@ -86,36 +86,36 @@ class DoubleDQNTrainer:
             progress_bar.set_description(REINFORCEMENT_ITER.format(l))
 
     def train(self, rfc_data: ShapeDataset, imit_data: ShapeDataset, episode_len: int,
-            long_mem: int, short_mem: int, rl_mem: int, batch_size: int,
+            long_mem: int, rl_mem: int, batch_size: int, #short_mem: int, 
             dagger_iter: int, dagger_updates: int, dump_path: str) -> None:
         """
         Main training loop. Trains a neural network using the Double DQN algorithm, 
         with a first phase of imitation learning using the DAgger algorithm.
         """
-        assert short_mem == episode_len
+        #assert short_mem == episode_len
         self.__model_path = dump_path
 
-        self.imitation_buffer = LongShortMemory(long_mem, short_mem, episode_len, batch_size)
+        self.imitation_buffer = LongShortMemory(long_mem, episode_len, batch_size)
         rl_mem = ReplayBuffer(rl_mem)
         self.reinforcement_buffer = RBDataLoader(rl_mem, episode_len, batch_size)
         
         self.__online.train()
 
-        for episode in imit_data:
+        for episode in tqdm(imit_data, desc="Imitation learning"):
             initial_state = self.__online.get_initial_state(episode['reference'])
             self.__env.set_state(initial_state)
             self.__env.set_target(episode['mesh'])
 
             self.imitation(dagger_iter, dagger_updates, episode_len)
-            break
+            #break
 
-        for episode in rfc_data:
+        for episode in tqdm(rfc_data, desc="Reinforcement learning"):
             initial_state = self.__online.get_initial_state(episode['reference'])
             self.__env.set_state(initial_state)
             self.__env.set_target(episode['mesh'])
 
             self.reinforcement(episode_len)
-            break
+            #break
 
     def optimize_model(self, batch: Dict[str, Union[Batch, torch.Tensor]], joint: bool=False) -> float:
 
