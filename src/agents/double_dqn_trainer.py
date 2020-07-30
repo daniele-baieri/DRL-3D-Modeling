@@ -1,5 +1,6 @@
 import torch
 from typing import Tuple, Dict, Union, List
+from tqdm import tqdm
 
 from torch.utils.data import Dataset
 from torch.nn import SmoothL1Loss
@@ -17,6 +18,10 @@ from agents.imitation.expert import Expert
 from agents.imitation.long_short_memory import LongShortMemory
 
 from geometry.shape_dataset import ShapeDataset
+
+
+IMITATION_ITER = "DAgger({}) // Loss: {}"
+REINFORCEMENT_ITER = "DDQN // Loss: {}"
 
 
 class DoubleDQNTrainer:
@@ -53,9 +58,11 @@ class DoubleDQNTrainer:
         self.imitation_buffer.aggregate(start)
 
         for idx in range(iterations):
-            for upd in range(updates):
+            progress_bar = tqdm(range(updates), desc=IMITATION_ITER.format(idx, 0.0))
+            for upd in progress_bar:
                 batch = self.imitation_buffer.sample()
-                self.optimize_model(batch, joint=True)
+                l = self.optimize_model(batch, joint=True)
+                progress_bar.set_description(IMITATION_ITER.format(idx, l))
             new_episode = self.unroll(initial, episode_len)
             D = self.__exp.relabel(new_episode)
             self.imitation_buffer.aggregate(D)
@@ -65,7 +72,8 @@ class DoubleDQNTrainer:
         Double DQN training algorithm: a single episode.
         """
         
-        for _ in range(episode_len):
+        progress_bar = tqdm(range(episode_len), desc=REINFORCEMENT_ITER.format(0.0))
+        for _ in progress_bar:
 
             curr = self.__env.get_state()
             action = self.select_action(curr)
@@ -74,7 +82,8 @@ class DoubleDQNTrainer:
             self.reinforcement_buffer.dataset.push(exp)
 
             batch = next(iter(self.reinforcement_buffer))
-            self.optimize_model(batch)
+            l = self.optimize_model(batch)
+            progress_bar.set_description(REINFORCEMENT_ITER.format(l))
 
     def train(self, rfc_data: ShapeDataset, imit_data: ShapeDataset, episode_len: int,
             long_mem: int, short_mem: int, rl_mem: int, batch_size: int,
@@ -84,6 +93,7 @@ class DoubleDQNTrainer:
         with a first phase of imitation learning using the DAgger algorithm.
         """
         assert short_mem == episode_len
+        self.__model_path = dump_path
 
         self.imitation_buffer = LongShortMemory(long_mem, short_mem, episode_len, batch_size)
         rl_mem = ReplayBuffer(rl_mem)
@@ -97,6 +107,7 @@ class DoubleDQNTrainer:
             self.__env.set_target(episode['mesh'])
 
             self.imitation(dagger_iter, dagger_updates, episode_len)
+            break
 
         for episode in rfc_data:
             initial_state = self.__online.get_initial_state(episode['reference'])
@@ -104,11 +115,13 @@ class DoubleDQNTrainer:
             self.__env.set_target(episode['mesh'])
 
             self.reinforcement(episode_len)
+            break
 
-    def optimize_model(self, batch: Dict[str, Union[Batch, torch.Tensor]], joint: bool=False) -> None:
+    def optimize_model(self, batch: Dict[str, Union[Batch, torch.Tensor]], joint: bool=False) -> float:
 
         if self.__opt_counter % self.__tau == 0:
             self.__target.load_state_dict(self.__online.state_dict())
+            torch.save(self.__online.state_dict(), self.__model_path)
         self.__opt_counter += 1
 
         state_in = batch['src'].to(self.__device)
@@ -130,10 +143,11 @@ class DoubleDQNTrainer:
             diff = self.__loss(best_q, pred.T)
             loss += diff
 
-        print("Current loss: "+str(loss.item()))
+        #print("Current loss: "+str(loss.item()))
         self.__opt.zero_grad()
         loss.backward()
         self.__opt.step()
+        return loss.item()
 
     def select_action(self, s: State) -> Action:
         r = torch.rand(1).item()

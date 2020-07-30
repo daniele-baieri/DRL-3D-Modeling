@@ -26,53 +26,41 @@ class PrimReward(Reward):
         cuda = self.__device == 'cuda'
 
         l = PrimState.voxel_grid_side ** 3
-        target = torch.zeros(l, dtype=torch.bool).to(self.__device)
+        target = torch.zeros(l, dtype=torch.bool, device=self.__device)
         target[model] = 1
 
-        self.__voxels_cache = new.voxelize(cubes=True, use_cuda=cuda)
-        self.__valid_cache = True
-        iou_new, iou_sum_new = self.iou(new, target), self.iou_sum(new, target)
+        cubes_vox_new = new.voxelize(cubes=True, use_cuda=cuda)
+        cubes_vox_old = old.voxelize(cubes=True, use_cuda=cuda)
+        vox_new = cubes_vox_new.sum(dim=0)
+        vox_old = cubes_vox_old.sum(dim=0)
 
-        self.__voxels_cache = old.voxelize(cubes=True, use_cuda=cuda)
-        iou_old, iou_sum_old = self.iou(old, target), self.iou_sum(old, target)
-        self.__valid_cache = False
+        iou_new, iou_sum_new = self.iou(vox_new, target), self.iou_sum(cubes_vox_new, target, len(new))
+        iou_old, iou_sum_old = self.iou(vox_old, target), self.iou_sum(cubes_vox_old, target, len(old))
 
         iou = iou_new - iou_old
         iou_sum = self.__alpha_1 * (iou_sum_new - iou_sum_old)
         parsimony = self.__alpha_2 * (self.parsimony(new) - self.parsimony(old))
         return iou + iou_sum + parsimony
 
-    def iou(self, s: PrimState, target: torch.LongTensor) -> float:
-        state = None
-        if self.__valid_cache:
-            state = self.__voxels_cache.sum(dim=0).bool()
-        else:
-            state = s.voxelize(cubes=False)
+    def iou(self, s: torch.LongTensor, target: torch.LongTensor) -> float:
         #s.meshify().show()
-
         #if torch.max(state) > 262144:
         #    s.meshify().show()
         #    return
-        
         #t = time.time()
-        res = self.__compute_iou(state, target)
+        i = (s & target).sum().float()
+        u = (s | target).sum().float()
+        res = torch.div(i, u)
         #print("IOU TIME: " + str(time.time() - t))
         return res
 
-    def iou_sum(self, s: PrimState, target: torch.LongTensor) -> float:
+    def iou_sum(self, s: torch.LongTensor, target: torch.LongTensor, live_prims: int) -> float:
         #t = time.time()
-        state = None
-        if self.__valid_cache:
-            state = self.__voxels_cache
-        else:
-            state = s.voxelize(cubes=True)
-        #target = BaseModel.get_model()
-        #t = time.time()
-        i = (state & target).sum(dim=1).float()
-        u = (state | target).sum(dim=1).float()
+        i = (s & target).sum(dim=1).float()
+        u = (s | target).sum(dim=1).float()
         res = torch.div(i, u).sum()
         #print("IOU SUM TIME: " + str(time.time() - t))
-        return res / len(s)
+        return res / live_prims
 
     def parsimony(self, s: PrimState) -> float:
         P = PrimState.num_primitives

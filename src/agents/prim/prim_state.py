@@ -27,8 +27,8 @@ class PrimState(State):
         self.__primitives = prim
         self.__geom_cache = None
         self.__mesh_cache = None
-        #self.__vox_list_cache = None
-        #self.__vox_cache = None
+        self.__vox_list_cache = None
+        self.__vox_cache = None
         self.__ref = reference
         self.__step = torch.zeros(self.episode_len + 1, dtype=torch.long)
         self.__step[step] = 1
@@ -60,43 +60,44 @@ class PrimState(State):
         """
         Efficient voxelization for union of cuboids shapes.
         """
-        #if cubes and self.__vox_list_cache is not None:
-        #    return self.__vox_list_cache
-        #elif not cubes and self.__vox_cache is not None:
-        #    return self.__vox_cache
+
+        if cubes and self.__vox_list_cache is not None:
+            return self.__vox_list_cache
+        elif not cubes and self.__vox_cache is not None:
+            return self.__vox_cache
+
         device = 'cuda' if use_cuda else 'cpu'
 
         prims = self.get_live_primitives()
 
-        point_cloud = torch.cat([c.to_geom_data().pos for c in prims]).to(device)   
+        L = self.voxel_grid_side
+        point_cloud = torch.cat([c.get_pivots() for c in prims])#.to(device)
         min_comp = point_cloud.min()
         max_comp = point_cloud.max()
-        pitch = (max_comp - min_comp) / (self.voxel_grid_side)#(self.max_coord - self.min_coord) / (self.voxel_grid_side) #
-        #offset = pitch / 2
-        #vox_space = torch.linspace(min_comp, max_comp, self.voxel_grid_side)
-        #Y_space = torch.linspace(self.min_coord+offset, self.max_coord-offset, self.voxel_grid_side)
-        #Z_space = torch.linspace(self.min_coord+offset, self.max_coord-offset, self.voxel_grid_side)
+        pitch = (max_comp - min_comp) / L #(self.max_coord - self.min_coord) / (self.voxel_grid_side) #
 
-        #subdivisions = [c.subdivide(vox_space, vox_space, vox_space) for c in prims]
         if not cubes:
-            G = torch.zeros(self.voxel_grid_side, self.voxel_grid_side, self.voxel_grid_side, dtype=torch.long).to(device)   
+            self.__vox_cache = torch.zeros(L, L, L, dtype=torch.long, device=device)   
         else:
-            G = []
+            self.__vox_list_cache = torch.zeros(len(prims), L, L, L, dtype=torch.long, device=device)
 
+        # MAKE EFFICIENT PLS AND ADD CACHING
+        idx = 0
         for c in prims:
-            verts = c.get_pivots().to(device)   
+            verts = c.get_pivots()#.to(device)   
             VOX = torch.floor((verts - min_comp) / pitch).long()
             if not cubes:
-                G[VOX[0,0]:VOX[1,0], VOX[0,1]:VOX[1,1], VOX[0,2]:VOX[1,2]] = 1
+                self.__vox_cache[VOX[0,0]:VOX[1,0], VOX[0,1]:VOX[1,1], VOX[0,2]:VOX[1,2]] = 1
             else:
-                H = torch.zeros(self.voxel_grid_side, self.voxel_grid_side, self.voxel_grid_side, dtype=torch.long).to(device)   
-                H[VOX[0,0]:VOX[1,0], VOX[0,1]:VOX[1,1], VOX[0,2]:VOX[1,2]] = 1
-                G.append(H.flatten())
+                self.__vox_list_cache[idx, VOX[0,0]:VOX[1,0], VOX[0,1]:VOX[1,1], VOX[0,2]:VOX[1,2]] = 1
+            idx += 1
         
         if cubes:
-            return torch.stack(G)
+            self.__vox_list_cache = self.__vox_list_cache.view(len(prims), -1)
+            return self.__vox_list_cache
         else:
-            return G.flatten()
+            self.__vox_cache = self.__vox_cache.flatten()
+            return self.__vox_cache
         '''
         if cubes:
             # NOTE: unique concatenation of all these voxel grids == (cubes == False)
