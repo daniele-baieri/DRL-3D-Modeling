@@ -61,10 +61,10 @@ class PrimState(State):
         Efficient voxelization for union of cuboids shapes.
         """
 
-        if cubes and self.__vox_list_cache is not None:
-            return self.__vox_list_cache
-        elif not cubes and self.__vox_cache is not None:
-            return self.__vox_cache
+        #if cubes and self.__vox_list_cache is not None:
+        #    return self.__vox_list_cache
+        #elif not cubes and self.__vox_cache is not None:
+        #    return self.__vox_cache
 
         device = 'cuda' if use_cuda else 'cpu'
 
@@ -77,9 +77,9 @@ class PrimState(State):
         pitch = (max_comp - min_comp) / L #(self.max_coord - self.min_coord) / (self.voxel_grid_side) #
 
         if not cubes:
-            self.__vox_cache = torch.zeros(L, L, L, dtype=torch.long, device=device)   
+            G = torch.zeros(L, L, L, dtype=torch.long, device=device)   
         else:
-            self.__vox_list_cache = torch.zeros(len(prims), L, L, L, dtype=torch.long, device=device)
+            G = torch.zeros(len(prims), L, L, L, dtype=torch.long, device=device)
 
         # MAKE EFFICIENT PLS AND ADD CACHING
         idx = 0
@@ -87,17 +87,15 @@ class PrimState(State):
             verts = c.get_pivots()#.to(device)   
             VOX = torch.floor((verts - min_comp) / pitch).long()
             if not cubes:
-                self.__vox_cache[VOX[0,0]:VOX[1,0], VOX[0,1]:VOX[1,1], VOX[0,2]:VOX[1,2]] = 1
+                G[VOX[0,0]:VOX[1,0], VOX[0,1]:VOX[1,1], VOX[0,2]:VOX[1,2]] = 1
             else:
-                self.__vox_list_cache[idx, VOX[0,0]:VOX[1,0], VOX[0,1]:VOX[1,1], VOX[0,2]:VOX[1,2]] = 1
+                G[idx, VOX[0,0]:VOX[1,0], VOX[0,1]:VOX[1,1], VOX[0,2]:VOX[1,2]] = 1
             idx += 1
         
         if cubes:
-            self.__vox_list_cache = self.__vox_list_cache.view(len(prims), -1)
-            return self.__vox_list_cache
+            return G.view(len(prims), -1)
         else:
-            self.__vox_cache = self.__vox_cache.flatten()
-            return self.__vox_cache
+            return G.flatten()
         '''
         if cubes:
             # NOTE: unique concatenation of all these voxel grids == (cubes == False)
