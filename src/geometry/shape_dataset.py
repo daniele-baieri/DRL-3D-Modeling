@@ -3,6 +3,7 @@ import trimesh
 import warnings
 import numpy as np
 import os
+import matplotlib.pyplot as plt
 #import chardet
 
 from typing import List, Dict, Union
@@ -51,7 +52,8 @@ class ShapeDataset(Dataset):
         """
         @param partition: string in {'RFC', 'IMIT', 'TEST'} (resp. reinforcement, imitation, testing).
         @param train_split: portion of data used for training. 1-@train_split = portion of data used for testing.
-        @param imit_split: portion of data used for imitation learning. 1-@imit_split = portion of data used for reinforcement learning.
+        @param imit_split: portion of *training* data used for imitation learning. 
+            @train_split-@imit_split = portion of data used for reinforcement learning.
         """
         self.root = Path(path)
         self.paths = []
@@ -74,6 +76,7 @@ class ShapeDataset(Dataset):
 
             # find all objects in the class
             models = sorted(class_target.glob('*'))
+            models = [x for x in models if os.path.exists(x / 'models/model_render.png')]
             models = models[:items_per_category[synset_names[i]]]
             stop = int(len(models) * train_split)
             if partition == 'RFC' or partition == 'IMIT':
@@ -105,6 +108,8 @@ class ShapeDataset(Dataset):
 
         image = Image.open(render)
         reference = TF.to_tensor(TF.resize(TF.to_grayscale(image), size=(120, 120)))
+        #plt.imshow(reference.squeeze())
+        #plt.show()
 
         return {'target': model, 'mesh': voxels.bool(), 'reference': reference}
 

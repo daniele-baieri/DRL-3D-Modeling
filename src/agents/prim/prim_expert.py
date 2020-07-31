@@ -41,7 +41,7 @@ class PrimExpert(Expert):
         res = []
         curr = s
         P = PrimState.num_primitives
-        for step in tqdm(range(max_steps)):
+        for step in tqdm(range(max_steps), desc="Expert is unrolling..."):
             exp = self.poll(curr, step%P, step > max_steps//2)
             succ = exp.get_destination()
             assert len(succ) > 0
@@ -55,9 +55,10 @@ class PrimExpert(Expert):
         Relabels a list of experiences using the Expert's policy.
         """
         res = []
-        i, P = 0, PrimState.num_primitives
-        for exp in exps:
-            e_new = self.poll(exp.get_source(), i%P, i >= len(exps)//2)
+        P = PrimState.num_primitives
+        max_steps = len(exps)
+        for step in tqdm(range(max_steps), desc="Expert is relabeling..."):
+            curr = exps[step].get_source()
+            e_new = self.poll(curr, step%P, step > max_steps//2)
             res.append(e_new)
-            i+=1
         return res

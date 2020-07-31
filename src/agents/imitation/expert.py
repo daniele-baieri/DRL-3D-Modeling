@@ -10,5 +10,8 @@ class Expert:
     def poll(self, s: State) -> Action:
         raise NotImplementedError
 
-    def get_action_sequence(self, s: State, max_steps: int) -> List[Experience]:
+    def unroll(self, s: State, max_steps: int) -> List[Experience]:
+        raise NotImplementedError
+
+    def relabel(self, exps: List[Experience]) -> List[Experience]:
         raise NotImplementedError

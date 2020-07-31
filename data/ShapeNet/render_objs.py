@@ -21,6 +21,11 @@ break_timeout = False
 render_w = 1080
 render_h = 1080
 
+ignore_existing = False
+print(len(sys.argv))
+if len(sys.argv) > 7:
+    ignore_existing = True
+
 
 context = bpy.context
 scene = bpy.context.scene
@@ -54,6 +59,10 @@ for model in Path(root).rglob('*.obj'):
 
     home = model.parents[0]
     render_file = home / 'model_render.png'
+    if ignore_existing and os.path.exists(render_file):
+        print("Skipping...")
+        continue
+
     model = str(model)
     
     # make a new scene with cam and lights linked

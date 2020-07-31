@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as F
 from typing import Tuple, Dict, Union, List
 from tqdm import tqdm
 
@@ -56,9 +57,9 @@ class DoubleDQNTrainer:
 
         start = self.__exp.unroll(initial, episode_len)
         self.imitation_buffer.aggregate(start)
-
-        progress_bar = tqdm(range(updates), desc=IMITATION_ITER.format(0, 0.0))
+        
         for idx in range(iterations):  
+            progress_bar = tqdm(range(updates), desc=IMITATION_ITER.format(idx, 0.0))
             for upd in progress_bar:
                 batch = self.imitation_buffer.sample()
                 l = self.optimize_model(batch, joint=True)
@@ -89,7 +90,7 @@ class DoubleDQNTrainer:
             long_mem: int, rl_mem: int, batch_size: int, #short_mem: int, 
             dagger_iter: int, dagger_updates: int, dump_path: str) -> None:
         """
-        Main training loop. Trains a neural network using the Double DQN algorithm, 
+        Main training loop. Trains a Q-network using the Double DQN algorithm, 
         with a first phase of imitation learning using the DAgger algorithm.
         """
         #assert short_mem == episode_len
@@ -101,21 +102,28 @@ class DoubleDQNTrainer:
         
         self.__online.train()
 
-        for episode in tqdm(imit_data, desc="Imitation learning"):
+        ep = 1
+        for episode in imit_data:
+            print("Imitation episode: " + str(ep))
             initial_state = self.__online.get_initial_state(episode['reference'])
             self.__env.set_state(initial_state)
             self.__env.set_target(episode['mesh'])
 
             self.imitation(dagger_iter, dagger_updates, episode_len)
-            #break
+            ep += 1
 
-        for episode in tqdm(rfc_data, desc="Reinforcement learning"):
+        self.__target.load_state_dict(self.__online.state_dict())
+        torch.save(self.__online.state_dict(), self.__model_path)
+
+        ep = 1
+        for episode in rfc_data:
+            print("Reinforcement episode: " + str(ep))
             initial_state = self.__online.get_initial_state(episode['reference'])
             self.__env.set_state(initial_state)
             self.__env.set_target(episode['mesh'])
 
             self.reinforcement(episode_len)
-            #break
+            ep += 1
 
     def optimize_model(self, batch: Dict[str, Union[Batch, torch.Tensor]], joint: bool=False) -> float:
 
@@ -134,13 +142,13 @@ class DoubleDQNTrainer:
         next_val = self.__target(next_in).max(dim=-1)[0].detach()   
         exp_act_val = (self.__gamma * next_val) + rewards
 
-        loss = self.__loss(pred, exp_act_val.unsqueeze(-1))
+        loss = F.mse_loss(pred, exp_act_val.unsqueeze(-1))
 
         if joint:
-            margins = torch.zeros_like(model_out, device=self.__device)
-            margins[range(len(action_ids)), action_ids.T] = self.__margin
+            margins = torch.zeros_like(model_out, device=self.__device) + self.__margin
+            margins[range(len(action_ids)), action_ids.T] = 0
             best_q = (model_out + margins).max(dim=-1)[0]
-            diff = self.__loss(best_q, pred.T)
+            diff = F.smooth_l1_loss(best_q, pred.T)
             loss += diff
 
         #print("Current loss: "+str(loss.item()))
@@ -163,7 +171,7 @@ class DoubleDQNTrainer:
     def unroll(self, s: State, episode_len: int) -> List[Experience]:
         res = []
         self.__env.set_state(s)
-        for _ in range(episode_len):
+        for _ in tqdm(range(episode_len), desc="Unrolling Agent..."):
             curr = self.__env.get_state()
             act = self.select_action(curr)
             succ, r = self.__env.transition(act)
