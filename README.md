@@ -34,4 +34,4 @@ I used the following datasets to train different versions of my models:
 * [ShapeNet Core V2](https://www.shapenet.org/) (rigid objects)
 
 I did not include data in the repository for size and copyright issues. If you wish to try out the training process, follow the links and download it. You will find the required directory structure in `./data/info.txt`.
-However, I did include picture rendered with [Blender](https://www.blender.org/) for a portion of the shapes in the Plane, Pistol, Rocket and Watercraft synsets (which I used for training the Q-networks). 
+However, I did include pictures rendered with [Blender](https://www.blender.org/) for a portion of the shapes in the Plane, Pistol, Rocket and Watercraft synsets (which I used for training the Q-networks). 
