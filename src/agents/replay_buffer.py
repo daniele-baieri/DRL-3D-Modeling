@@ -1,7 +1,7 @@
 import torch, time
 
 from math import pi as PI
-from typing import List, Dict
+from typing import List, Dict, Union
 
 from torch.utils.data import DataLoader, Dataset, RandomSampler
 from torch_geometric.data import Data, Batch
@@ -73,6 +73,33 @@ class ReplayBuffer(Dataset):
         self.memory = []
         self.__pointer = 0
 
+
+class DoubleReplayBuffer:
+
+    def __init__(self, b_1: ReplayBuffer, b_2: ReplayBuffer, ep_len: int, batch_size: int, 
+            is_frozen_1: bool=False, is_frozen_2: bool=False):
+        self.b_1 = RBDataLoader(b_1, ep_len, batch_size // 2)
+        self.b_2 = RBDataLoader(b_2, ep_len, batch_size // 2)
+        self.b1_frozen = is_frozen_1
+        self.b2_frozen = is_frozen_2
+
+    def sample(self) -> Dict[str, Union[Batch, torch.Tensor]]:
+        X_1 = next(iter(self.b_1))
+        X_2 = next(iter(self.b_2))
+        src = Batch.from_data_list(X_1['src'].to_data_list() + X_2['src'].to_data_list())
+        dest = Batch.from_data_list(X_1['dest'].to_data_list() + X_2['dest'].to_data_list())
+        act = torch.cat([X_1['act'], X_2['act']], dim=-1)
+        rew = torch.cat([X_1['r'], X_2['r']], dim=-1)
+        return {
+            'src': src, 'dest': dest, 'act': act, 'r': rew
+        }
+
+    def push(self, e: Experience) -> None:
+        if not self.b1_frozen:
+            self.b_1.dataset.push(e)
+        if not self.b2_frozen:
+            self.b_2.dataset.push(e)
+    
 
 class RBDataLoader(DataLoader):
 

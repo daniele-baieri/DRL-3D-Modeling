@@ -47,7 +47,7 @@ label_to_synset = {v: k for k, v in synset_to_label.items()}
 class ShapeDataset(Dataset):
 
     def __init__(self, path: str, items_per_category: Dict[str, int], 
-                 partition: str='RFC', train_split: float=.9, imit_split: float=.1,
+                 partition: str='RFC', train_split: float=.9, imit_split: float=.05,
                  voxel_grid_side: int=64):
         """
         @param partition: string in {'RFC', 'IMIT', 'TEST'} (resp. reinforcement, imitation, testing).

@@ -3,11 +3,11 @@ import torch
 import torch.nn as nn
 from typing import List
 
-from torch.nn import Conv2d, ReLU, BatchNorm2d, MaxPool2d, Linear, ELU, Softmax
+from torch.nn import Conv2d, ReLU, BatchNorm2d, MaxPool2d, Linear, ELU, Softmax, Dropout
 
 from torch_geometric.data import Data, Batch
 from torch_geometric.transforms import Polar
-from torch_geometric.nn import GMMConv, BatchNorm, global_mean_pool
+from torch_geometric.nn import GMMConv, BatchNorm, global_mean_pool, GlobalAttention
 
 from agents.base_model import BaseModel
 from agents.prim.prim_state import PrimState
@@ -22,6 +22,7 @@ class PrimModel(BaseModel):
         self.ep_len = PrimState.episode_len + 1
 
         #NOTE: what about some dropout?
+        self.dropout = Dropout(p=0.5)
         
         # 0. Activations
         self.relu = ReLU()
@@ -48,14 +49,16 @@ class PrimModel(BaseModel):
         self.bn1 = BatchNorm(16)
         self.bn2 = BatchNorm(32)
         self.bn3 = BatchNorm(64)
-        self.fc1 = Linear(64, 256)
+        # Pooling
+        self.pool_geom = GlobalAttention(Linear(64, 1), nn=Linear(64, 256))
+        self.fc1 = Linear(256, 512)
 
         # 3. Step processing stream
         # Simple FC layer.
         self.fc2 = Linear(self.ep_len, 256)
 
         # 4. Concatenation layer
-        self.fc3 = Linear(256 * 3, act_space_size)
+        self.fc3 = Linear(256 + 256 + 512, act_space_size)
 
 
     def forward(self, state_batch: Batch) -> torch.Tensor:
@@ -69,6 +72,7 @@ class PrimModel(BaseModel):
         x_1 = self.relu(self.flatbn2(self.pool2(x_1)))
         x_1 = self.conv3(x_1)
         x_1 = self.relu(self.flatbn3(self.pool2(x_1))).view(x_1.shape[0], -1)
+        x_1 = self.dropout(x_1)
         #x_1 = x_1.repeat(batch_size, 1)
 
         pos = state_batch.pos
@@ -78,17 +82,15 @@ class PrimModel(BaseModel):
         x_2 = self.elu(self.GMM2(x_2, edges, pseudo))
         x_2 = self.elu(self.GMM3(x_2, edges, pseudo))
         #this makes shape right but might cause huge info loss
-        x_2 = global_mean_pool(x_2, state_batch.batch) 
-        #print(x_2.shape)
-        x_2 = self.elu(self.fc1(x_2))
+        #x_2 = global_mean_pool(x_2, state_batch.batch) 
+        x_2 = self.pool_geom(x_2, state_batch.batch)
+
+        x_2 = self.elu(self.fc1(self.dropout(x_2)))
   
         x_3 = self.relu(self.fc2(state_batch.step.float()))
-        #x_3 = x_3.repeat(batch_size, 1)
-
-        #print(x_1.shape, x_2.shape, x_3.shape)
 
         x = torch.cat([x_1, x_2, x_3], dim=1)
-        #print(x.shape)
+
         x = self.fc3(x)
         return x
 

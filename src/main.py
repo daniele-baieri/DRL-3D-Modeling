@@ -1,4 +1,4 @@
-import time, math, os
+import time, math, os, random
 import torch
 import trimesh
 
@@ -27,33 +27,20 @@ from geometry.cuboid import Cuboid
 from geometry.shape_dataset import ShapeDataset
 
 
-'''
-class TestDataset(Dataset):
-
-    def __init__(self, num_rand: int, size: int):
-        self.data = [torch.rand(size, size) for _ in range(num_rand)]
-
-    def __len__(self) -> int:
-        return len(self.data)
-
-    def __getitem__(self, idx: int) -> torch.Tensor:
-        return self.data[idx]
-'''
 
 def train():
     
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     PrimState.init_state_space(episode_len=300)
-    x = torch.tensor([-1.0,-1.0,-1.0])
-    y = torch.tensor([1.0,1.0,1.0])
-    unit = torch.dist(x, y).item() / 16
-    PrimAction.init_action_space(PrimState.num_primitives, 2, [-2 * unit, -unit, unit, 2 * unit])
+    PrimAction.init_action_space(PrimState.num_primitives, 2, [-2, -1, 1, 2])
     
     R = PrimReward(0.1, 0.01, device)
     env = Environment(PrimAction.ground(), R)
 
     online = PrimModel(PrimAction.act_space_size)
+    params = sum(p.numel() for p in online.parameters() if p.requires_grad)
+    print("MODEL PARAMETERS: " + str(params))
     target = PrimModel(PrimAction.act_space_size)
     target.load_state_dict(online.state_dict())
     target.eval()
@@ -61,14 +48,14 @@ def train():
     opt = Adam(online.parameters(), 0.0001)
     exp = PrimExpert(env)
 
-    trainer = DoubleDQNTrainer(online, target, env, opt, exp, 0.9, 0.8, 20, 0.02, device)
+    trainer = DoubleDQNTrainer(online, target, env, opt, exp, 0.9, 0.8, 1000, 0.02, device)
 
     rfc = ShapeDataset('../data/ShapeNet', items_per_category={'watercraft': 600, 'plane': 800, 'pistol': 600, 'rocket': 800})
     imit = ShapeDataset('../data/ShapeNet', items_per_category={'watercraft': 600, 'plane': 800, 'pistol': 600, 'rocket': 800}, partition='IMIT')
     print("IMITATION DATA: " + str(len(imit)) + " instances")
     print("REINFORCEMENT DATA: " + str(len(rfc)) + " instances")
     t1 = time.time()
-    trainer.train(rfc, imit, PrimState.episode_len, 200000, 100000, 64, 4, 1000, '../model/PRIM.pth')
+    trainer.train(rfc, imit, PrimState.episode_len, 200000, 100000, 64, 3, 1000, '../model/PRIM.pth')
     print("Training time: " + str(time.time() - t1))
 
 
@@ -77,10 +64,7 @@ def test():
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     PrimState.init_state_space(episode_len=300)
-    x = torch.tensor([-1.0,-1.0,-1.0])
-    y = torch.tensor([1.0,1.0,1.0])
-    unit = torch.dist(x, y).item() / 16
-    PrimAction.init_action_space(PrimState.num_primitives, 2, [-2 * unit, -unit, unit, 2 * unit])
+    PrimAction.init_action_space(PrimState.num_primitives, 2, [-2, -1, 1, 2])
 
     R = PrimReward(0.1, 0.01, device)
     env = Environment(PrimAction.ground(), R)
@@ -91,7 +75,10 @@ def test():
 
     online.load_state_dict(torch.load('../model/PRIM.pth'))
 
-    rfc = ShapeDataset('../data/ShapeNet', items_per_category={'plane': 800, 'pistol': 600, 'rocket': 800}, partition='TEST')
+    test = ShapeDataset('../data/ShapeNet', items_per_category={'watercraft': 600, 'plane': 800, 'pistol': 600, 'rocket': 800}, partition='TEST')
+    print("TEST DATA: " + str(len(test)) + " instances")
+    data = test[random.randint(0, len(test))]
+    data['target'].show()
 
     def select_action(m: PrimModel, s: State) -> Action:
         b = Batch.from_data_list([polar(s.to_geom_data())])
@@ -100,60 +87,62 @@ def test():
         action.set_index(pred)
         return action
 
-    curr = online.get_initial_state(rfc[-1]['reference'])
+    curr = online.get_initial_state(data['reference'])
     for idx in range(PrimState.episode_len):
-        if idx%30 == 0:
+        if idx%27 == 0:
             curr.meshify().show()
         act = select_action(online, curr)
         print(act)
         curr = act(curr)
+    curr.meshify().show()
 
+    state_voxelized = curr.voxelize(cubes=True, use_cuda=device=='cuda')
+    print(R.iou(state_voxelized.sum(dim=0), data['mesh'].to(device)))
+    print(R.iou_sum(state_voxelized, data['mesh'].to(device), len(curr)))
 
-    
+   
 def virtual_expert_modeling():
-    PrimState.init_state_space() 
-    x = torch.tensor([-1.0,-1.0,-1.0])
-    y = torch.tensor([1.0,1.0,1.0])
-    unit = torch.dist(x, y).item() / 16
-    PrimAction.init_action_space(PrimState.num_primitives, 2, [-2 * unit, -unit, unit, 2 * unit])
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-    R = PrimReward(0.1, 0.01)
+    PrimState.init_state_space(episode_len=300)
+    #x = torch.tensor([-1.0,-1.0,-1.0])
+    #y = torch.tensor([1.0,1.0,1.0])
+    #unit = torch.dist(x, y).item() / 16
+    PrimAction.init_action_space(PrimState.num_primitives, 2, [-2, -1, 1, 2])
+
+    R = PrimReward(0.1, 0.01, device)
     env = Environment(PrimAction.ground(), R)
-    exp = PrimExpert(R, env)
+    exp = PrimExpert(env)
 
-    M = PrimModel(10, PrimAction.act_space_size)
-    D = ShapeDataset('../data/ShapeNet', categories=['pistol'])
-    import random
-    idx = random.randint(1, 10)
-    episode = D[idx]
-    BaseModel.new_episode(episode['reference'], episode['mesh'])
+    online = PrimModel(PrimAction.act_space_size)
+    online.eval()
+    online.to(device)
 
-    current = PrimState.initial()
-    current.meshify()
-    
-    experiences = exp.unroll(current, 27 * 4)
-    actions = [e.get_action() for e in experiences]
+    online.load_state_dict(torch.load('../model/PRIM.pth'))
 
-    for act in actions:
-        current = act(current)
+    test = ShapeDataset('../data/ShapeNet', items_per_category={'watercraft': 600, 'plane': 800, 'pistol': 600, 'rocket': 800}, partition='TEST')
+    print("TEST DATA: " + str(len(test)) + " instances")
+    data = test[random.randint(0, len(test))]
+    data['target'].show()
+    env.set_target(data['mesh'])
 
-    print(len(current))
-    t = torch.zeros(64 ** 3, dtype=torch.long, device=os.environ['DEVICE'])
-    t[episode['mesh']] = 1
-    print(R.iou(current, t))
-    print(R.iou_sum(current, t))
-        
-    scene = trimesh.Scene()
-    scene.add_geometry(current.meshify())
-    scene.add_geometry(episode['target'])
-    scene.show()
+    curr = online.get_initial_state(data['reference'])
+    history = exp.unroll(curr, PrimState.episode_len)
+    for idx in range(len(history)):
+        curr = history[idx].get_source()
+        print(history[idx].get_action())
+        if idx%27 == 0:
+            curr.meshify().show()
+    curr.meshify().show()
 
+    state_voxelized = curr.voxelize(cubes=True, use_cuda=device=='cuda')
+    print(R.iou(state_voxelized.sum(dim=0), data['mesh'].to(device)))
+    print(R.iou_sum(state_voxelized, data['mesh'].to(device), len(curr)))
 
 
 if __name__ == "__main__":
 
-    # TODO: Figure why Expert relabeling needs more time than unrolling
-    # TODO: Let the reinforcement() procedure sample from both the Long Term Memory and the Rfc buffer
+    #TODO: pickle Imitation and Reinforcement buffer to allow for training interrupt/restart
 
     t = time.time()
     #virtual_expert_modeling()

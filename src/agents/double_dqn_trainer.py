@@ -11,7 +11,7 @@ from torch_geometric.data import Batch
 
 from agents.base_model import BaseModel
 from agents.environment import Environment
-from agents.replay_buffer import ReplayBuffer, RBDataLoader, polar
+from agents.replay_buffer import ReplayBuffer, RBDataLoader, polar, DoubleReplayBuffer
 from agents.experience import Experience
 from agents.action import Action
 from agents.state import State
@@ -47,6 +47,7 @@ class DoubleDQNTrainer:
         self.__target = target.to(self.__device)
         self.__target.eval()
         self.__loss = SmoothL1Loss().to(self.__device)
+        self.__accum_loss = 0.0
         
     def imitation(self, iterations: int, updates: int, episode_len: int) -> None:
         """
@@ -54,19 +55,23 @@ class DoubleDQNTrainer:
         """
 
         initial = self.__env.get_state()
-
-        start = self.__exp.unroll(initial, episode_len)
-        self.imitation_buffer.aggregate(start)
         
         for idx in range(iterations):  
+            self.__accum_loss = 0.0
+            if idx == 0:
+                D = self.__exp.unroll(initial, episode_len)
+            else:
+                new_episode = self.unroll(initial, episode_len)
+                D = self.__exp.relabel(new_episode)
+            self.imitation_buffer.aggregate(D)
+
             progress_bar = tqdm(range(updates), desc=IMITATION_ITER.format(idx, 0.0))
             for upd in progress_bar:
                 batch = self.imitation_buffer.sample()
                 l = self.optimize_model(batch, joint=True)
-                progress_bar.set_description(IMITATION_ITER.format(idx, l))
-            new_episode = self.unroll(initial, episode_len)
-            D = self.__exp.relabel(new_episode)
-            self.imitation_buffer.aggregate(D)
+                self.__accum_loss += l
+                progress_bar.set_description(IMITATION_ITER.format(idx, self.__accum_loss / (upd+1)))
+
             
     def reinforcement(self, episode_len: int) -> None:
         """
@@ -74,7 +79,7 @@ class DoubleDQNTrainer:
         """
         
         progress_bar = tqdm(range(episode_len), desc=REINFORCEMENT_ITER.format(0.0))
-        for _ in progress_bar:
+        for step in progress_bar:
 
             curr = self.__env.get_state()
             action = self.select_action(curr)
@@ -82,9 +87,10 @@ class DoubleDQNTrainer:
             exp = Experience(curr, succ, action, reward)
             self.reinforcement_buffer.dataset.push(exp)
 
-            batch = next(iter(self.reinforcement_buffer))
+            batch = self.reinforcement_buffer.sample()
             l = self.optimize_model(batch)
-            progress_bar.set_description(REINFORCEMENT_ITER.format(l))
+            self.__accum_loss += l
+            progress_bar.set_description(REINFORCEMENT_ITER.format(self.__accum_loss / (step+1)))
 
     def train(self, rfc_data: ShapeDataset, imit_data: ShapeDataset, episode_len: int,
             long_mem: int, rl_mem: int, batch_size: int, #short_mem: int, 
@@ -97,8 +103,6 @@ class DoubleDQNTrainer:
         self.__model_path = dump_path
 
         self.imitation_buffer = LongShortMemory(long_mem, episode_len, batch_size)
-        rl_mem = ReplayBuffer(rl_mem)
-        self.reinforcement_buffer = RBDataLoader(rl_mem, episode_len, batch_size)
         
         self.__online.train()
 
@@ -114,6 +118,9 @@ class DoubleDQNTrainer:
 
         self.__target.load_state_dict(self.__online.state_dict())
         torch.save(self.__online.state_dict(), self.__model_path)
+
+        rl_mem = ReplayBuffer(rl_mem)
+        self.reinforcement_buffer = DoubleReplayBuffer(rl_mem, self.imitation_buffer.long_memory, episode_len, batch_size, is_frozen_2=True)
 
         ep = 1
         for episode in rfc_data:
@@ -142,16 +149,15 @@ class DoubleDQNTrainer:
         next_val = self.__target(next_in).max(dim=-1)[0].detach()   
         exp_act_val = (self.__gamma * next_val) + rewards
 
-        loss = F.mse_loss(pred, exp_act_val.unsqueeze(-1))
+        loss = F.mse_loss(exp_act_val.unsqueeze(-1), pred)
 
         if joint:
             margins = torch.zeros_like(model_out, device=self.__device) + self.__margin
             margins[range(len(action_ids)), action_ids.T] = 0
             best_q = (model_out + margins).max(dim=-1)[0]
-            diff = F.smooth_l1_loss(best_q, pred.T)
+            diff = (best_q - pred.T).sum().div(best_q.shape[0])
             loss += diff
 
-        #print("Current loss: "+str(loss.item()))
         self.__opt.zero_grad()
         loss.backward()
         self.__opt.step()
