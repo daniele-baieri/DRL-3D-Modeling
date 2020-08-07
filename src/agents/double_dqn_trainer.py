@@ -21,7 +21,7 @@ from agents.imitation.long_short_memory import LongShortMemory
 from geometry.shape_dataset import ShapeDataset
 
 
-IMITATION_ITER = "DAgger({}) // Loss: {}"
+IMITATION_ITER = "DAgger({}) // Loss: {:0.4f} + {:0.4f} = {:0.4f}"
 REINFORCEMENT_ITER = "DDQN // Loss: {}"
 
 
@@ -58,6 +58,8 @@ class DoubleDQNTrainer:
         
         for idx in range(iterations):  
             self.__accum_loss = 0.0
+            rfc_loss = 0.0
+            imit_loss = 0.0
             if idx == 0:
                 D = self.__exp.unroll(initial, episode_len)
             else:
@@ -65,12 +67,14 @@ class DoubleDQNTrainer:
                 D = self.__exp.relabel(new_episode)
             self.imitation_buffer.aggregate(D)
 
-            progress_bar = tqdm(range(updates), desc=IMITATION_ITER.format(idx, 0.0))
+            progress_bar = tqdm(range(updates), desc=IMITATION_ITER.format(idx, 0.0, 0.0, 0.0))
             for upd in progress_bar:
                 batch = self.imitation_buffer.sample()
-                l = self.optimize_model(batch, joint=True)
+                r, i, l = self.optimize_model(batch, joint=True)
                 self.__accum_loss += l
-                progress_bar.set_description(IMITATION_ITER.format(idx, self.__accum_loss / (upd+1)))
+                rfc_loss += r
+                imit_loss += i
+                progress_bar.set_description(IMITATION_ITER.format(idx, rfc_loss / (upd + 1), imit_loss / (upd + 1), self.__accum_loss / (upd+1)))
 
             
     def reinforcement(self, episode_len: int) -> None:
@@ -85,7 +89,7 @@ class DoubleDQNTrainer:
             action = self.select_action(curr)
             succ, reward = self.__env.transition(action)
             exp = Experience(curr, succ, action, reward)
-            self.reinforcement_buffer.dataset.push(exp)
+            self.reinforcement_buffer.push(exp)
 
             batch = self.reinforcement_buffer.sample()
             l = self.optimize_model(batch)
@@ -118,6 +122,7 @@ class DoubleDQNTrainer:
 
         self.__target.load_state_dict(self.__online.state_dict())
         torch.save(self.__online.state_dict(), self.__model_path)
+        torch.save(self.__online.state_dict(), self.__model_path + '.imitation_only')
 
         rl_mem = ReplayBuffer(rl_mem)
         self.reinforcement_buffer = DoubleReplayBuffer(rl_mem, self.imitation_buffer.long_memory, episode_len, batch_size, is_frozen_2=True)
@@ -132,7 +137,7 @@ class DoubleDQNTrainer:
             self.reinforcement(episode_len)
             ep += 1
 
-    def optimize_model(self, batch: Dict[str, Union[Batch, torch.Tensor]], joint: bool=False) -> float:
+    def optimize_model(self, batch: Dict[str, Union[Batch, torch.Tensor]], joint: bool=False) -> Tuple[float, float, float]:
 
         if self.__opt_counter % self.__tau == 0:
             self.__target.load_state_dict(self.__online.state_dict())
@@ -144,24 +149,31 @@ class DoubleDQNTrainer:
         action_ids = batch['act'].unsqueeze(0).T.to(self.__device)
         rewards = batch['r'].to(self.__device)
 
-        model_out = self.__online(state_in)
-        pred = model_out.gather(1, action_ids)
-        next_val = self.__target(next_in).max(dim=-1)[0].detach()   
+        model_out = self.__online(state_in) # Q-values for all actions
+        pred = model_out.gather(1, action_ids) # Q-values for actions taken in experiences in the batch
+
+        next_best_actions = self.__online(next_in).argmax(dim=-1).detach() # Best Q-values for next state actions   
+        next_val = self.__target(next_in).gather(1, next_best_actions.unsqueeze(0).T).detach() # Target net Q-values for best next state actions
         exp_act_val = (self.__gamma * next_val) + rewards
 
         loss = F.mse_loss(exp_act_val.unsqueeze(-1), pred)
+        rfc_loss = loss.item()
 
         if joint:
-            margins = torch.zeros_like(model_out, device=self.__device) + self.__margin
-            margins[range(len(action_ids)), action_ids.T] = 0
-            best_q = (model_out + margins).max(dim=-1)[0]
-            diff = (best_q - pred.T).sum().div(best_q.shape[0])
+            margins = torch.zeros_like(model_out, device=self.__device) + self.__margin # (margin) ^ {A x A}
+            margins[range(len(action_ids)), action_ids.T] = 0 # margin is zero for expert Actions (i.e. action_ids in an imitation learning context)
+            best_q = (model_out + margins).max(dim=-1)[0] # Find best Q-values, eventually including margin if the action is not expert
+            diff = (best_q - pred.T).sum().div(best_q.shape[0]) # Difference with Q-values of expert actions: if only expert actions are taken, this is 0
             loss += diff
 
         self.__opt.zero_grad()
         loss.backward()
         self.__opt.step()
-        return loss.item()
+
+        if joint:
+            return rfc_loss, diff.item(), loss.item()
+
+        return rfc_loss
 
     def select_action(self, s: State) -> Action:
         r = torch.rand(1).item()

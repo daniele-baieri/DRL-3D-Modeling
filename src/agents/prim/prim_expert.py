@@ -25,6 +25,9 @@ class PrimExpert(Expert):
         best, bestAct = None, None
         lo = prim * PrimAction.act_per_prim
         hi = lo + PrimAction.act_per_prim - (1-int(delete))
+        if s.is_deleted(prim):
+            hi = lo+1
+
         for act in range(lo, hi): 
             A = self.__env.get_action(act)
             A.set_index(act)
@@ -41,13 +44,15 @@ class PrimExpert(Expert):
         res = []
         curr = s
         P = PrimState.num_primitives
-        for step in tqdm(range(max_steps), desc="Expert is unrolling..."):
+        iterations = tqdm(range(max_steps), desc="Expert is unrolling...")
+        for step in iterations:
             exp = self.poll(curr, step%P, step > max_steps//2)
             succ = exp.get_destination()
-            assert len(succ) > 0
+            #assert len(succ) > 0
 
             res.append(exp)
             curr = succ #test that this doesn't break anything (print the experience)
+            iterations.set_description("Expert unrolling - Reward: " + str(exp.get_reward()))
         return res
 
     def relabel(self, exps: List[Experience]) -> List[Experience]:
@@ -57,8 +62,10 @@ class PrimExpert(Expert):
         res = []
         P = PrimState.num_primitives
         max_steps = len(exps)
-        for step in tqdm(range(max_steps), desc="Expert is relabeling..."):
+        iterations = tqdm(range(max_steps), desc="Expert is relabeling...")
+        for step in iterations:
             curr = exps[step].get_source()
             e_new = self.poll(curr, step%P, step > max_steps//2)
             res.append(e_new)
+            iterations.set_description("Expert relabeling - Reward: " + str(e_new.get_reward()))
         return res

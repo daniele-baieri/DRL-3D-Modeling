@@ -22,8 +22,7 @@ class PrimState(State):
     __last_cube_size = 0
     __last_num_prims = 0
 
-    def __init__(self, prim: List[Cuboid], reference: torch.FloatTensor, step: int, 
-            bounding_box: torch.FloatTensor=None):
+    def __init__(self, prim: List[Cuboid], reference: torch.FloatTensor, step: int):#, bounding_box: torch.FloatTensor=None):
         #assert len(prim) == pow(self.num_primitives, 3)
         self.__primitives = prim
         self.__geom_cache = None
@@ -34,6 +33,7 @@ class PrimState(State):
         self.__step = torch.zeros(self.episode_len + 1, dtype=torch.long)
         self.__step[step] = 1
         self.__step_idx = step
+        '''
         if bounding_box is not None:
             self.unit = torch.dist(bounding_box[1,:], bounding_box[0,:]).item() / 16.0
             self.bounding_box = bounding_box
@@ -41,6 +41,7 @@ class PrimState(State):
             verts = torch.cat([c.get_pivots() for c in prim if c is not None])
             self.bounding_box = torch.stack([verts.min(dim=0)[0], verts.max(dim=0)[0]])
             self.unit = torch.dist(self.bounding_box[1,:], self.bounding_box[0,:]).item() / 16.0
+        '''
 
     def __repr__(self) -> str:
         return repr(self.__primitives)
@@ -114,6 +115,9 @@ class PrimState(State):
     def get_step_onehot(self) -> torch.LongTensor:
         return self.__step
 
+    def is_deleted(self, prim: int) -> bool:
+        return self.__primitives[prim] is None
+
     @classmethod
     def init_state_space(cls, prim: int=3, voxelization_grid: int=64, episode_len: int=300, max_coord_abs: float=1.0) -> None:
         assert prim > 0 and voxelization_grid > 0 and max_coord_abs > 0
@@ -125,6 +129,7 @@ class PrimState(State):
         cls.voxel_grid_side = voxelization_grid
         cls.voxel_side = (cls.max_coord - cls.min_coord) / (cls.voxel_grid_side - 1)
         cls.episode_len = episode_len
+        cls.unit = math.sqrt(12.0) / 16.0
 
     @classmethod
     def initial(cls, ref: torch.FloatTensor) -> PrimState:
@@ -140,7 +145,7 @@ class PrimState(State):
             Cuboid(torch.stack([tup, tup + cls.cube_side_len]))
             for tup in torch.cartesian_prod(r, r, r)
         ]
-        init = PrimState(cubes, ref, 0, torch.tensor([[-1.0,-1.0,-1.0],[1.0,1.0,1.0]], dtype=torch.float))
+        init = PrimState(cubes, ref, 0)#, torch.tensor([[-1.0,-1.0,-1.0],[1.0,1.0,1.0]], dtype=torch.float))
         if cls.__initial_state_cache is None:
             cls.__initial_state_cache = init
             cls.__last_cube_size = cls.cube_side_len

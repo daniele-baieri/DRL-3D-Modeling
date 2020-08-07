@@ -40,7 +40,7 @@ class PrimAction(Action):
             return 'SLIDE(v=' + str(self.__vert) + \
                 ', p=' + str(self.__prim) + \
                 ', a=' + str(self.__axis) + \
-                ', m=' + str(self.__slide) + ')'
+                ', m=' + str(self.__slide * PrimState.unit) + ')'
 
     def _apply(self, s: PrimState) -> PrimState:
         prims = s.get_primitives()
@@ -48,16 +48,16 @@ class PrimAction(Action):
             return s
         if self.__delete:
             prims[self.__prim] = None
-            new_bb = None
+            #new_bb = None
         else:
             c = prims[self.__prim]
-            prims[self.__prim] = c.slide(self.__vert, self.__axis, self.__slide * s.unit)
-            v = prims[self.__prim].get_pivots()
-            bb = s.bounding_box
-            new_bb = torch.tensor(
-                [[min(v[0,i], bb[0,i]) for i in range(3)], [max(v[0,i], bb[0,i]) for i in range(3)]]
-            )
-        return PrimState(prims, s.get_reference(), s.get_step() + 1, bounding_box=new_bb)
+            prims[self.__prim] = c.slide(self.__vert, self.__axis, self.__slide * PrimState.unit)
+            #v = prims[self.__prim].get_pivots()
+            #bb = s.bounding_box
+            #new_bb = torch.tensor(
+            #    [[min(v[0,i], bb[0,i]) for i in range(3)], [max(v[0,i], bb[0,i]) for i in range(3)]]
+            #)
+        return PrimState(prims, s.get_reference(), s.get_step() + 1)#, bounding_box=new_bb)
 
     def get_index(self) -> int:
         return self.__idx

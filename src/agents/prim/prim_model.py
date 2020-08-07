@@ -7,7 +7,7 @@ from torch.nn import Conv2d, ReLU, BatchNorm2d, MaxPool2d, Linear, ELU, Softmax,
 
 from torch_geometric.data import Data, Batch
 from torch_geometric.transforms import Polar
-from torch_geometric.nn import GMMConv, BatchNorm, global_mean_pool, GlobalAttention
+from torch_geometric.nn import GMMConv, BatchNorm, global_max_pool, GlobalAttention
 
 from agents.base_model import BaseModel
 from agents.prim.prim_state import PrimState
@@ -21,13 +21,11 @@ class PrimModel(BaseModel):
         #self.set_episode_len(ep_len)
         self.ep_len = PrimState.episode_len + 1
 
-        #NOTE: what about some dropout?
         self.dropout = Dropout(p=0.5)
         
         # 0. Activations
         self.relu = ReLU()
         self.elu = ELU()
-        self.softmax = Softmax(dim=1)
 
         # 1. Depth map processing stream
         # A standard convolutional image processing network.
@@ -43,22 +41,22 @@ class PrimModel(BaseModel):
         # 2. State processing stream
         # A GMM convolutional network. 
         self.GMM1 = GMMConv(3, 16, 2, 5)
-        self.GMM2 = GMMConv(16, 32, 2, 5)
-        self.GMM3 = GMMConv(32, 64, 2, 5)
+        self.GMM2 = GMMConv(16, 64, 2, 5)
+        self.GMM3 = GMMConv(64, 256, 2, 5)
         # Here we could use some batchnorm, but I don't know if it works well
         self.bn1 = BatchNorm(16)
-        self.bn2 = BatchNorm(32)
-        self.bn3 = BatchNorm(64)
+        self.bn2 = BatchNorm(64)
+        self.bn3 = BatchNorm(256)
         # Pooling
-        self.pool_geom = GlobalAttention(Linear(64, 1), nn=Linear(64, 256))
-        self.fc1 = Linear(256, 512)
+        #self.pool_geom = GlobalAttention(Linear(64, 1), nn=Linear(64, 256))
+        #self.fc1 = Linear(64, 256)
 
         # 3. Step processing stream
         # Simple FC layer.
         self.fc2 = Linear(self.ep_len, 256)
 
         # 4. Concatenation layer
-        self.fc3 = Linear(256 + 256 + 512, act_space_size)
+        self.fc3 = Linear(256 + 256 + 256, act_space_size)
 
 
     def forward(self, state_batch: Batch) -> torch.Tensor:
@@ -82,16 +80,16 @@ class PrimModel(BaseModel):
         x_2 = self.elu(self.GMM2(x_2, edges, pseudo))
         x_2 = self.elu(self.GMM3(x_2, edges, pseudo))
         #this makes shape right but might cause huge info loss
-        #x_2 = global_mean_pool(x_2, state_batch.batch) 
-        x_2 = self.pool_geom(x_2, state_batch.batch)
+        x_2 = global_max_pool(x_2, state_batch.batch) 
+        #x_2 = self.pool_geom(x_2, state_batch.batch)
 
-        x_2 = self.elu(self.fc1(self.dropout(x_2)))
+        #x_2 = self.elu(self.fc1(self.dropout(x_2)))
   
         x_3 = self.relu(self.fc2(state_batch.step.float()))
 
         x = torch.cat([x_1, x_2, x_3], dim=1)
 
-        x = self.fc3(x)
+        x = self.fc3(self.dropout(x))
         return x
 
     

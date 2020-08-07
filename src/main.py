@@ -48,14 +48,14 @@ def train():
     opt = Adam(online.parameters(), 0.0001)
     exp = PrimExpert(env)
 
-    trainer = DoubleDQNTrainer(online, target, env, opt, exp, 0.9, 0.8, 1000, 0.02, device)
+    trainer = DoubleDQNTrainer(online, target, env, opt, exp, 0.9, 0.8, 500, 0.02, device)
 
     rfc = ShapeDataset('../data/ShapeNet', items_per_category={'watercraft': 600, 'plane': 800, 'pistol': 600, 'rocket': 800})
     imit = ShapeDataset('../data/ShapeNet', items_per_category={'watercraft': 600, 'plane': 800, 'pistol': 600, 'rocket': 800}, partition='IMIT')
     print("IMITATION DATA: " + str(len(imit)) + " instances")
     print("REINFORCEMENT DATA: " + str(len(rfc)) + " instances")
     t1 = time.time()
-    trainer.train(rfc, imit, PrimState.episode_len, 200000, 100000, 64, 3, 1000, '../model/PRIM.pth')
+    trainer.train(rfc, imit, PrimState.episode_len, 200000, 100000, 64, 4, 500, '../model/PRIM.pth')
     print("Training time: " + str(time.time() - t1))
 
 
