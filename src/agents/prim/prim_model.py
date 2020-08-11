@@ -55,8 +55,13 @@ class PrimModel(BaseModel):
         # Simple FC layer.
         self.fc2 = Linear(self.ep_len, 256)
 
+        # 4. Primitive liveness check
+        # An FC layer encoding which primitives are still in a PrimState
+        # This should help the network not to execute actions on deleted primitives, which have 0 reward
+        self.fc3 = Linear(PrimState.num_primitives, 256)
+
         # 4. Concatenation layer
-        self.fc3 = Linear(256 + 256 + 256, act_space_size)
+        self.fc4 = Linear(256 * 4, act_space_size)
 
 
     def forward(self, state_batch: Batch) -> torch.Tensor:
@@ -87,9 +92,11 @@ class PrimModel(BaseModel):
   
         x_3 = self.relu(self.fc2(state_batch.step.float()))
 
-        x = torch.cat([x_1, x_2, x_3], dim=1)
+        x_4 = self.relu(self.fc3(state_batch.prims))
 
-        x = self.fc3(self.dropout(x))
+        x = torch.cat([x_1, x_2, x_3, x_4], dim=1)
+
+        x = self.fc4(self.dropout(x))
         return x
 
     

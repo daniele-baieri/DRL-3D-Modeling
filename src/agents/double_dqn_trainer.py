@@ -81,10 +81,12 @@ class DoubleDQNTrainer:
         """
         Double DQN training algorithm: a single episode.
         """
-        
-        progress_bar = tqdm(range(episode_len), desc=REINFORCEMENT_ITER.format(0.0))
-        for step in progress_bar:
 
+        self.__accum_loss = 0.0
+        progress_bar = tqdm(range(episode_len), desc=REINFORCEMENT_ITER.format(0.0))
+
+        for step in progress_bar:
+        
             curr = self.__env.get_state()
             action = self.select_action(curr)
             succ, reward = self.__env.transition(action)
@@ -146,28 +148,34 @@ class DoubleDQNTrainer:
 
         state_in = batch['src'].to(self.__device)
         next_in = batch['dest'].to(self.__device)
-        action_ids = batch['act'].unsqueeze(0).T.to(self.__device)
-        rewards = batch['r'].to(self.__device)
+        action_ids = batch['act'].to(self.__device).unsqueeze(0).T
+        rewards = batch['r'].to(self.__device).unsqueeze(-1)
 
         model_out = self.__online(state_in) # Q-values for all actions
         pred = model_out.gather(1, action_ids) # Q-values for actions taken in experiences in the batch
 
-        next_best_actions = self.__online(next_in).argmax(dim=-1).detach() # Best Q-values for next state actions   
-        next_val = self.__target(next_in).gather(1, next_best_actions.unsqueeze(0).T).detach() # Target net Q-values for best next state actions
+        next_best_actions = self.__online(next_in).detach().max(dim=-1)[1] # Best Q-values for next state actions   
+        next_val = self.__target(next_in).detach().gather(1, next_best_actions.unsqueeze(0).T) # Target net Q-values for best next state actions
         exp_act_val = (self.__gamma * next_val) + rewards
 
-        loss = F.mse_loss(exp_act_val.unsqueeze(-1), pred)
+        loss = F.mse_loss(exp_act_val, pred)
+        #loss = (exp_act_val.unsqueeze(-1) - pred).sum().div(pred.shape[0])
+        #loss = -1.0 * loss.clamp(-1, 1)
         rfc_loss = loss.item()
 
         if joint:
             margins = torch.zeros_like(model_out, device=self.__device) + self.__margin # (margin) ^ {A x A}
             margins[range(len(action_ids)), action_ids.T] = 0 # margin is zero for expert Actions (i.e. action_ids in an imitation learning context)
             best_q = (model_out + margins).max(dim=-1)[0] # Find best Q-values, eventually including margin if the action is not expert
-            diff = (best_q - pred.T).sum().div(best_q.shape[0]) # Difference with Q-values of expert actions: if only expert actions are taken, this is 0
+            diff = (best_q - pred.squeeze()).sum().div(best_q.shape[0]) # Difference with Q-values of expert actions: if only expert actions are taken, this is 0
             loss += diff
 
         self.__opt.zero_grad()
         loss.backward()
+        #pred.backward(loss)
+        #for param in self.__online.parameters():
+        #    if param.grad is not None:
+        #        param.grad.data.clamp_(-1, 1)
         self.__opt.step()
 
         if joint:

@@ -45,17 +45,17 @@ def train():
     target.load_state_dict(online.state_dict())
     target.eval()
     
-    opt = Adam(online.parameters(), 0.0001)
+    opt = Adam(online.parameters(), 0.00008)
     exp = PrimExpert(env)
 
-    trainer = DoubleDQNTrainer(online, target, env, opt, exp, 0.9, 0.8, 500, 0.02, device)
+    trainer = DoubleDQNTrainer(online, target, env, opt, exp, 0.9, 0.8, 4000, 0.02, device)
 
-    rfc = ShapeDataset('../data/ShapeNet', items_per_category={'watercraft': 600, 'plane': 800, 'pistol': 600, 'rocket': 800})
-    imit = ShapeDataset('../data/ShapeNet', items_per_category={'watercraft': 600, 'plane': 800, 'pistol': 600, 'rocket': 800}, partition='IMIT')
+    rfc = ShapeDataset('../data/ShapeNet', items_per_category={'watercraft': 600, 'plane': 800, 'pistol': 600, 'rocket': 800}, imit_split=0.01) # Double imit shapes when you start training and leave
+    imit = ShapeDataset('../data/ShapeNet', items_per_category={'watercraft': 600, 'plane': 800, 'pistol': 600, 'rocket': 800}, partition='IMIT', imit_split=0.01)
     print("IMITATION DATA: " + str(len(imit)) + " instances")
     print("REINFORCEMENT DATA: " + str(len(rfc)) + " instances")
     t1 = time.time()
-    trainer.train(rfc, imit, PrimState.episode_len, 200000, 100000, 64, 4, 500, '../model/PRIM.pth')
+    trainer.train(rfc, imit, PrimState.episode_len, 200000, 100000, 64, 2, 2000, '../model/PRIM.pth')
     print("Training time: " + str(time.time() - t1))
 
 
@@ -118,7 +118,7 @@ def virtual_expert_modeling():
     online.eval()
     online.to(device)
 
-    online.load_state_dict(torch.load('../model/PRIM.pth'))
+    #online.load_state_dict(torch.load('../model/PRIM.pth'))
 
     test = ShapeDataset('../data/ShapeNet', items_per_category={'watercraft': 600, 'plane': 800, 'pistol': 600, 'rocket': 800}, partition='TEST')
     print("TEST DATA: " + str(len(test)) + " instances")

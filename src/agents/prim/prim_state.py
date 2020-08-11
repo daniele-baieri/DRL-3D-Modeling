@@ -25,6 +25,7 @@ class PrimState(State):
     def __init__(self, prim: List[Cuboid], reference: torch.FloatTensor, step: int):#, bounding_box: torch.FloatTensor=None):
         #assert len(prim) == pow(self.num_primitives, 3)
         self.__primitives = prim
+        self.__live_prims = [c for c in self.__primitives if c is not None]
         self.__geom_cache = None
         self.__mesh_cache = None
         self.__vox_list_cache = None
@@ -33,15 +34,6 @@ class PrimState(State):
         self.__step = torch.zeros(self.episode_len + 1, dtype=torch.long)
         self.__step[step] = 1
         self.__step_idx = step
-        '''
-        if bounding_box is not None:
-            self.unit = torch.dist(bounding_box[1,:], bounding_box[0,:]).item() / 16.0
-            self.bounding_box = bounding_box
-        else:
-            verts = torch.cat([c.get_pivots() for c in prim if c is not None])
-            self.bounding_box = torch.stack([verts.min(dim=0)[0], verts.max(dim=0)[0]])
-            self.unit = torch.dist(self.bounding_box[1,:], self.bounding_box[0,:]).item() / 16.0
-        '''
 
     def __repr__(self) -> str:
         return repr(self.__primitives)
@@ -54,6 +46,7 @@ class PrimState(State):
             self.__geom_cache = Cuboid.aggregate(self.__primitives)
             self.__geom_cache.reference = self.__ref
             self.__geom_cache.step = self.__step.unsqueeze(0)
+            self.__geom_cache.prims = torch.FloatTensor([[0 if p is None else 1 for p in self.__primitives]])
         return self.__geom_cache
 
     def meshify(self) -> Trimesh: 
@@ -101,7 +94,7 @@ class PrimState(State):
             return G.flatten()
 
     def get_live_primitives(self) -> List[Cuboid]:
-        return [c for c in self.__primitives if c is not None]
+        return self.__live_prims
 
     def get_primitives(self) -> List[Cuboid]:
         return copy.deepcopy(self.__primitives)
