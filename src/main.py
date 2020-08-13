@@ -50,8 +50,8 @@ def train():
 
     trainer = DoubleDQNTrainer(online, target, env, opt, exp, 0.9, 0.8, 4000, 0.02, device)
 
-    rfc = ShapeDataset('../data/ShapeNet', items_per_category={'watercraft': 600, 'plane': 800, 'pistol': 600, 'rocket': 800}, imit_split=0.01) # Double imit shapes when you start training and leave
-    imit = ShapeDataset('../data/ShapeNet', items_per_category={'watercraft': 600, 'plane': 800, 'pistol': 600, 'rocket': 800}, partition='IMIT', imit_split=0.01)
+    rfc = ShapeDataset('../data/ShapeNet', items_per_category={'watercraft': 400, 'plane': 493, 'pistol': 307, 'car': 400}, imit_split=0.01) 
+    imit = ShapeDataset('../data/ShapeNet', items_per_category={'watercraft': 400, 'plane': 493, 'pistol': 307, 'car': 400}, partition='IMIT', imit_split=0.01)
     print("IMITATION DATA: " + str(len(imit)) + " instances")
     print("REINFORCEMENT DATA: " + str(len(rfc)) + " instances")
     t1 = time.time()
@@ -75,6 +75,11 @@ def test():
 
     online.load_state_dict(torch.load('../model/PRIM.pth'))
 
+    #s = PrimState([None] * 27, torch.rand(120, 120).unsqueeze(0), 10)
+    #b = Batch.from_data_list([polar(s.to_geom_data())]).to(device)
+    #online(b)
+
+    
     test = ShapeDataset('../data/ShapeNet', items_per_category={'watercraft': 600, 'plane': 800, 'pistol': 600, 'rocket': 800}, partition='TEST')
     print("TEST DATA: " + str(len(test)) + " instances")
     data = test[random.randint(0, len(test))]
@@ -99,6 +104,7 @@ def test():
     state_voxelized = curr.voxelize(cubes=True, use_cuda=device=='cuda')
     print(R.iou(state_voxelized.sum(dim=0), data['mesh'].to(device)))
     print(R.iou_sum(state_voxelized, data['mesh'].to(device), len(curr)))
+    
 
    
 def virtual_expert_modeling():
@@ -142,10 +148,10 @@ def virtual_expert_modeling():
 
 if __name__ == "__main__":
 
-    #TODO: pickle Imitation and Reinforcement buffer to allow for training interrupt/restart
 
     t = time.time()
     #virtual_expert_modeling()
     train()
+    
     #test()
     print("Total time: " + str(time.time() - t))

@@ -43,7 +43,13 @@ class PrimState(State):
 
     def to_geom_data(self) -> Data:
         if self.__geom_cache is None:
-            self.__geom_cache = Cuboid.aggregate(self.__primitives)
+            if len(self.__live_prims) == 0:
+                self.__geom_cache = Data(
+                    pos=torch.FloatTensor([[0,0,0],[0,0,0]]), 
+                    edge_index=torch.LongTensor([[0, 0],[0, 1]])
+                )
+            else:
+                self.__geom_cache = Cuboid.aggregate(self.__primitives)
             self.__geom_cache.reference = self.__ref
             self.__geom_cache.step = self.__step.unsqueeze(0)
             self.__geom_cache.prims = torch.FloatTensor([[0 if p is None else 1 for p in self.__primitives]])

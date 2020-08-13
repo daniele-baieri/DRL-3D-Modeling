@@ -172,10 +172,7 @@ class DoubleDQNTrainer:
 
         self.__opt.zero_grad()
         loss.backward()
-        #pred.backward(loss)
-        #for param in self.__online.parameters():
-        #    if param.grad is not None:
-        #        param.grad.data.clamp_(-1, 1)
+
         self.__opt.step()
 
         if joint:
