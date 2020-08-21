@@ -1,13 +1,16 @@
 from __future__ import annotations
 import copy, time, math, os
 import torch
-from typing import List, Union
+from typing import List, Union, Dict
 from itertools import product
 
 from geometry.cuboid import Cuboid
+
 from agents.state import State
 
-from torch_geometric.data import Data
+from agents.experience import Experience
+
+from torch_geometric.data import Data, Batch
 from torch_geometric.nn.pool import voxel_grid
 
 from trimesh import Trimesh
@@ -26,10 +29,8 @@ class PrimState(State):
         #assert len(prim) == pow(self.num_primitives, 3)
         self.__primitives = prim
         self.__live_prims = [c for c in self.__primitives if c is not None]
-        self.__geom_cache = None
+        #self.__geom_cache = None
         self.__mesh_cache = None
-        self.__vox_list_cache = None
-        self.__vox_cache = None
         self.__ref = reference
         self.__step = torch.zeros(self.episode_len + 1, dtype=torch.long)
         self.__step[step] = 1
@@ -41,7 +42,9 @@ class PrimState(State):
     def __len__(self) -> int:
         return len(self.get_live_primitives())
 
+    
     def to_geom_data(self) -> Data:
+        '''
         if self.__geom_cache is None:
             if len(self.__live_prims) == 0:
                 self.__geom_cache = Data(
@@ -54,6 +57,13 @@ class PrimState(State):
             self.__geom_cache.step = self.__step.unsqueeze(0)
             self.__geom_cache.prims = torch.FloatTensor([[0 if p is None else 1 for p in self.__primitives]])
         return self.__geom_cache
+        '''
+        return Data(
+            ref = self.__ref,
+            pivots = self.get_cuboids_tensor().unsqueeze(0),
+            step = self.get_step_onehot().float().unsqueeze(0)
+        )
+    
 
     def meshify(self) -> Trimesh: 
         # NOTE: Don't use during training. It's very slow. Just for visual purposes.
@@ -71,10 +81,10 @@ class PrimState(State):
 
         device = 'cuda' if use_cuda else 'cpu'
 
-        prims = self.get_live_primitives()
+        prims = self.__primitives
 
         L = self.voxel_grid_side
-        point_cloud = torch.cat([c.get_pivots() for c in prims])#.to(device)
+        point_cloud = torch.cat([c.get_pivots() for c in self.__live_prims])#.to(device)
         min_comp = point_cloud.min()
         max_comp = point_cloud.max()
         pitch = (max_comp - min_comp) / L #(self.max_coord - self.min_coord) / (self.voxel_grid_side) #
@@ -86,18 +96,26 @@ class PrimState(State):
 
         idx = 0
         for c in prims:
-            verts = c.get_pivots()#.to(device)   
-            VOX = torch.floor((verts - min_comp) / pitch).long()
-            if not cubes:
-                G[VOX[0,0]:VOX[1,0], VOX[0,1]:VOX[1,1], VOX[0,2]:VOX[1,2]] = 1
-            else:
-                G[idx, VOX[0,0]:VOX[1,0], VOX[0,1]:VOX[1,1], VOX[0,2]:VOX[1,2]] = 1
+            if c is not None:
+                verts = c.get_pivots()#.to(device)   
+                VOX = torch.floor((verts - min_comp) / pitch).long()
+                if not cubes:
+                    G[VOX[0,0]:VOX[1,0], VOX[0,1]:VOX[1,1], VOX[0,2]:VOX[1,2]] = 1
+                else:
+                    G[idx, VOX[0,0]:VOX[1,0], VOX[0,1]:VOX[1,1], VOX[0,2]:VOX[1,2]] = 1
             idx += 1
         
         if cubes:
             return G.view(len(prims), -1)
         else:
             return G.flatten()
+
+    def get_cuboids_tensor(self) -> torch.FloatTensor:
+        return torch.cat([
+            c.get_pivots().flatten() if c is not None
+            else torch.zeros(6, dtype=torch.float)
+            for c in self.__primitives
+        ])
 
     def get_live_primitives(self) -> List[Cuboid]:
         return self.__live_prims
@@ -144,10 +162,20 @@ class PrimState(State):
             Cuboid(torch.stack([tup, tup + cls.cube_side_len]))
             for tup in torch.cartesian_prod(r, r, r)
         ]
-        init = PrimState(cubes, ref, 0)#, torch.tensor([[-1.0,-1.0,-1.0],[1.0,1.0,1.0]], dtype=torch.float))
+        init = PrimState(cubes, ref, 0)
         if cls.__initial_state_cache is None:
             cls.__initial_state_cache = init
             cls.__last_cube_size = cls.cube_side_len
             cls.__last_num_prims = cls.num_primitives
         return init
- 
+
+    @classmethod
+    def collate_prim_experiences(cls, exps: List[Experience]) -> Dict[str, torch.Tensor]:
+        sources = Batch.from_data_list([e.get_source().to_geom_data() for e in exps])
+        destinations = Batch.from_data_list([e.get_destination().to_geom_data() for e in exps])
+        return {
+            'src': sources,
+            'dest': destinations,
+            'act': torch.LongTensor([e.get_action().get_index() for e in exps]),
+            'r': torch.FloatTensor([e.get_reward() for e in exps])
+        }

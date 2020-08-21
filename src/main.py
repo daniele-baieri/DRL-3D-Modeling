@@ -5,7 +5,7 @@ import trimesh
 from tqdm import tqdm
 
 from torch.utils.data import DataLoader, Dataset
-from torch.optim import Adam
+from torch.optim import Adam, Adadelta
 
 #from torch_geometric.utils import to_trimesh
 from torch_geometric.data import Batch
@@ -15,9 +15,10 @@ from agents.prim.prim_action import PrimAction
 from agents.prim.prim_model import PrimModel
 from agents.prim.prim_reward import PrimReward
 from agents.prim.prim_expert import PrimExpert
+from agents.imitation.long_short_memory import LongShortMemory
 from agents.environment import Environment
 from agents.experience import Experience
-from agents.replay_buffer import ReplayBuffer, RBDataLoader, polar
+from agents.replay_buffer import ReplayBuffer, RBDataLoader, polar, DoubleReplayBuffer
 from agents.double_dqn_trainer import DoubleDQNTrainer
 from agents.base_model import BaseModel
 from agents.state import State
@@ -29,6 +30,10 @@ from geometry.shape_dataset import ShapeDataset
 
 
 def train():
+
+    #torch.autograd.set_detect_anomaly(True)
+
+    BATCH_SIZE = 64
     
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -38,24 +43,28 @@ def train():
     R = PrimReward(0.1, 0.01, device)
     env = Environment(PrimAction.ground(), R)
 
-    online = PrimModel(PrimAction.act_space_size)
+    online = PrimModel(PrimAction.act_space_size).to(device)
     params = sum(p.numel() for p in online.parameters() if p.requires_grad)
     print("MODEL PARAMETERS: " + str(params))
-    target = PrimModel(PrimAction.act_space_size)
+    target = PrimModel(PrimAction.act_space_size).to(device)
     target.load_state_dict(online.state_dict())
     target.eval()
     
-    opt = Adam(online.parameters(), 0.00008)
+    opt = Adam(online.parameters(), lr=0.00008)
     exp = PrimExpert(env)
 
     trainer = DoubleDQNTrainer(online, target, env, opt, exp, 0.9, 0.8, 4000, 0.02, device)
 
-    rfc = ShapeDataset('../data/ShapeNet', items_per_category={'watercraft': 400, 'plane': 493, 'pistol': 307, 'car': 400}, imit_split=0.01) 
-    imit = ShapeDataset('../data/ShapeNet', items_per_category={'watercraft': 400, 'plane': 493, 'pistol': 307, 'car': 400}, partition='IMIT', imit_split=0.01)
+    rfc = ShapeDataset('../data/ShapeNet', items_per_category={'watercraft': 400, 'plane': 493, 'pistol': 307, 'car': 400})
+    imit = ShapeDataset('../data/ShapeNet', items_per_category={'watercraft': 400, 'plane': 493, 'pistol': 307, 'car': 400}, partition='IMIT')
     print("IMITATION DATA: " + str(len(imit)) + " instances")
     print("REINFORCEMENT DATA: " + str(len(rfc)) + " instances")
+
+    imit_buf = LongShortMemory(200000, PrimState.episode_len, BATCH_SIZE, PrimState.collate_prim_experiences)
+    rfc_mem = ReplayBuffer(100000)
+    rfc_buf = DoubleReplayBuffer(rfc_mem, imit_buf.long_memory, PrimState.episode_len, BATCH_SIZE, PrimState.collate_prim_experiences, is_frozen_2=True)
     t1 = time.time()
-    trainer.train(rfc, imit, PrimState.episode_len, 200000, 100000, 64, 2, 2000, '../model/PRIM.pth')
+    trainer.train(rfc, imit, PrimState.episode_len, imit_buf, rfc_buf, 2, 2000, '../model/PRIM.pth')
     print("Training time: " + str(time.time() - t1))
 
 
@@ -80,7 +89,7 @@ def test():
     #online(b)
 
     
-    test = ShapeDataset('../data/ShapeNet', items_per_category={'watercraft': 600, 'plane': 800, 'pistol': 600, 'rocket': 800}, partition='TEST')
+    test = ShapeDataset('../data/ShapeNet', items_per_category={'watercraft': 400, 'plane': 493, 'pistol': 307, 'car': 400}, partition='TEST')
     print("TEST DATA: " + str(len(test)) + " instances")
     data = test[random.randint(0, len(test))]
     data['target'].show()
@@ -98,7 +107,9 @@ def test():
             curr.meshify().show()
         act = select_action(online, curr)
         print(act)
-        curr = act(curr)
+        succ = act(curr)
+        print(R(curr, succ, data['mesh']))
+        curr = succ
     curr.meshify().show()
 
     state_voxelized = curr.voxelize(cubes=True, use_cuda=device=='cuda')
@@ -126,7 +137,7 @@ def virtual_expert_modeling():
 
     #online.load_state_dict(torch.load('../model/PRIM.pth'))
 
-    test = ShapeDataset('../data/ShapeNet', items_per_category={'watercraft': 600, 'plane': 800, 'pistol': 600, 'rocket': 800}, partition='TEST')
+    test = ShapeDataset('../data/ShapeNet', items_per_category={'watercraft': 400, 'plane': 493, 'pistol': 307, 'car': 400}, partition='TEST')
     print("TEST DATA: " + str(len(test)) + " instances")
     data = test[random.randint(0, len(test))]
     data['target'].show()
@@ -152,6 +163,5 @@ if __name__ == "__main__":
     t = time.time()
     #virtual_expert_modeling()
     train()
-    
     #test()
     print("Total time: " + str(time.time() - t))

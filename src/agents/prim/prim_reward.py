@@ -25,9 +25,7 @@ class PrimReward(Reward):
             return -1
         cuda = self.__device == 'cuda'
 
-        l = PrimState.voxel_grid_side ** 3
-        target = torch.zeros(l, dtype=torch.bool, device=self.__device)
-        target[model] = 1
+        target = model.to(self.__device)
 
         cubes_vox_new = new.voxelize(cubes=True, use_cuda=cuda)
         cubes_vox_old = old.voxelize(cubes=True, use_cuda=cuda)
@@ -40,7 +38,9 @@ class PrimReward(Reward):
         iou = iou_new - iou_old
         iou_sum = self.__alpha_1 * (iou_sum_new - iou_sum_old)
         parsimony = self.__alpha_2 * (self.parsimony(new) - self.parsimony(old))
-        return iou + iou_sum + parsimony
+        res = iou + iou_sum + parsimony
+        #assert abs(res.item()) < 1
+        return res.item()
 
     def iou(self, s: torch.LongTensor, target: torch.LongTensor) -> torch.FloatTensor:
         #s.meshify().show()
