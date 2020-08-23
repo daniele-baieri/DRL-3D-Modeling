@@ -160,38 +160,41 @@ class DoubleDQNTrainer:
         state_in = batch['src'].to(self.__device)
         next_in = batch['dest'].to(self.__device)
         action_ids = batch['act'].to(self.__device).unsqueeze(0).T
-        rewards = batch['r'].to(self.__device).unsqueeze(-1)
+        rewards = batch['r'].to(self.__device)#.unsqueeze(-1)
+        non_final_mask = ~ next_in.done # False if last state, True if not
 
         self.__online.train()
         model_out = self.__online(state_in) # Q-values for all actions
         pred = model_out.gather(1, action_ids) # Q-values for actions taken in experiences in the batch
 
-        self.__online.eval()
-        next_best_actions = self.__online(next_in).max(dim=-1)[1] # Best Q-values for next state actions   
-        next_val = self.__target(next_in).gather(1, next_best_actions.unsqueeze(0).T) # Target net Q-values for best next state actions
-        exp_act_val = (self.__gamma * next_val) + rewards
+        with torch.no_grad():
+            next_val = torch.zeros_like(rewards, dtype=torch.float, device=self.__device)
+            next_best_actions = self.__online(next_in, mask=non_final_mask).max(dim=-1)[1] # Best Q-values for next state actions   
+            next_val[non_final_mask] = self.__target(next_in, mask=non_final_mask).gather(1, next_best_actions.unsqueeze(0).T).squeeze()
+            exp_act_val = (self.__gamma * next_val) + rewards # Target net Q-values for best next state actions
 
-        loss = ((exp_act_val.detach() - pred) ** 2).mean()
+        loss = ((exp_act_val - pred.squeeze()) ** 2).mean()
         rfc_loss = loss.item()
 
         if joint:
             margins = torch.zeros_like(model_out, device=self.__device) + self.__margin # (margin) ^ {A x A}
             margins[range(len(action_ids)), action_ids.T] = 0 # margin is zero for expert Actions (i.e. action_ids in an imitation learning context)
             best_q = (model_out + margins).max(dim=-1)[0] # Find best Q-values, eventually including margin if the action is not expert
-            diff = (best_q - pred.squeeze().detach()).mean() # Difference with Q-values of expert actions: if only expert actions are taken, this is 0
+            diff = (best_q - pred.squeeze()).mean() # Difference with Q-values of expert actions: if only expert actions are taken, this is 0
             loss += diff
-
+ 
         self.__opt.zero_grad()
         loss.backward()
-        #for param in self.__online.parameters():
-        #    param.grad.data.clamp(-1, 1)
-        norm = nn.utils.clip_grad_norm_(self.__online.parameters(), 5.0)
+        for param in self.__online.parameters():
+            param.grad.data.clamp(-1, 1)
+        #norm = nn.utils.clip_grad_norm_(self.__online.parameters(), 1.0)
         self.__opt.step()
 
         if joint:
-            return rfc_loss, diff.item(), loss.item(), norm
+            return rfc_loss, diff.item(), loss.item(), 0#norm
 
-        return rfc_loss, norm
+        return rfc_loss, 0#norm
+        
 
     def select_action(self, s: State) -> Action:
         r = random.random()

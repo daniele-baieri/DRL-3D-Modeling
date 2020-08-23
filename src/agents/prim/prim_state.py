@@ -32,8 +32,9 @@ class PrimState(State):
         #self.__geom_cache = None
         self.__mesh_cache = None
         self.__ref = reference
-        self.__step = torch.zeros(self.episode_len + 1, dtype=torch.long)
-        self.__step[step] = 1
+        self.__step = torch.zeros(self.episode_len, dtype=torch.long)
+        if step < self.episode_len:
+            self.__step[step] = 1
         self.__step_idx = step
 
     def __repr__(self) -> str:
@@ -61,7 +62,8 @@ class PrimState(State):
         return Data(
             ref = self.__ref,
             pivots = self.get_cuboids_tensor().unsqueeze(0),
-            step = self.get_step_onehot().float().unsqueeze(0)
+            step = self.get_step_onehot().float().unsqueeze(0),
+            done = torch.tensor(self.__step_idx == self.episode_len)
         )
     
 

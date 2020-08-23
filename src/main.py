@@ -50,7 +50,7 @@ def train():
     target.load_state_dict(online.state_dict())
     target.eval()
     
-    opt = Adam(online.parameters(), lr=0.00008)
+    opt = Adam(online.parameters(), lr=0.0001)
     exp = PrimExpert(env)
 
     trainer = DoubleDQNTrainer(online, target, env, opt, exp, 0.9, 0.8, 4000, 0.02, device)
@@ -64,7 +64,7 @@ def train():
     rfc_mem = ReplayBuffer(100000)
     rfc_buf = DoubleReplayBuffer(rfc_mem, imit_buf.long_memory, PrimState.episode_len, BATCH_SIZE, PrimState.collate_prim_experiences, is_frozen_2=True)
     t1 = time.time()
-    trainer.train(rfc, imit, PrimState.episode_len, imit_buf, rfc_buf, 2, 2000, '../model/PRIM.pth')
+    trainer.train(rfc, imit, PrimState.episode_len, imit_buf, rfc_buf, 2, 4000, '../model/PRIM.pth')
     print("Training time: " + str(time.time() - t1))
 
 
@@ -95,27 +95,28 @@ def test():
     data['target'].show()
 
     def select_action(m: PrimModel, s: State) -> Action:
-        b = Batch.from_data_list([polar(s.to_geom_data())])
+        b = Batch.from_data_list([s.to_geom_data()])
         pred = torch.argmax(m(b.to(device)), -1).item()
         action = env.get_action(pred)
         action.set_index(pred)
         return action
 
     curr = online.get_initial_state(data['reference'])
+    rew = 0.0
     for idx in range(PrimState.episode_len):
         if idx%27 == 0:
             curr.meshify().show()
         act = select_action(online, curr)
         print(act)
         succ = act(curr)
-        print(R(curr, succ, data['mesh']))
+        rew += R(curr, succ, data['mesh'])
         curr = succ
     curr.meshify().show()
 
     state_voxelized = curr.voxelize(cubes=True, use_cuda=device=='cuda')
     print(R.iou(state_voxelized.sum(dim=0), data['mesh'].to(device)))
     print(R.iou_sum(state_voxelized, data['mesh'].to(device), len(curr)))
-    
+    print("Accum. Rew.: "  + str(rew))    
 
    
 def virtual_expert_modeling():

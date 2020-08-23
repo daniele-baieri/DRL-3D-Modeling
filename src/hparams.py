@@ -1,17 +1,13 @@
-from collections import namedtuple
-
-HParams = namedtuple(
-    'HParams', [
-        'num_prims_side',
-        'cuboid_side',
-        'movable_vertices_per_prim',
-        'possible_slides'
-        'r_alpha_1',
-        'r_alpha_2',
-        'episode_len',
-        'learning_rate',
-        'replay_buffer_len',
-        'batch_size',
-        'reward_discount_factor'
-    ]
-)
+BATCH_SIZE = 64
+LEARNING_RATE = 0.0001
+PRIM_EPISODE_LEN = 300
+PRIM_REW_A1 = 0.1
+PRIM_REW_A2 = 0.01
+TAU = 4000
+EPSILON = 0.02
+MARGIN = 0.8
+GAMMA = 0.9
+LONG_MEM_SIZE = 200000
+REPLAY_MEM_SIZE = 100000
+DAGGER_IT = 2
+DAGGER_UPDATES = 4000

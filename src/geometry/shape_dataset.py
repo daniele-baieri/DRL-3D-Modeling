@@ -107,7 +107,9 @@ class ShapeDataset(Dataset):
         #print(voxels.sum())
 
         image = Image.open(render)
-        reference = TF.to_tensor(TF.resize(TF.to_grayscale(image), size=(120, 120)))
+        resized = TF.resize(TF.to_grayscale(image), size=(120, 120))
+        #resized.show()
+        reference = TF.to_tensor(resized)
         #plt.imshow(reference.squeeze())
         #plt.show()
 

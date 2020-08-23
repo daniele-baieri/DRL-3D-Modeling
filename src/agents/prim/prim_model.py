@@ -19,7 +19,7 @@ class PrimModel(BaseModel):
         super(PrimModel, self).__init__()
 
         #self.set_episode_len(ep_len)
-        self.ep_len = PrimState.episode_len + 1
+        self.ep_len = PrimState.episode_len
 
         self.dropout = Dropout(p=0.5)
         
@@ -67,21 +67,28 @@ class PrimModel(BaseModel):
 
         # 4. Concatenation layer
         self.fc4 = Linear(256 * 3, 1024)
-        self.fc5 = Linear(1024, act_space_size)
+        self.fc5 = Linear(1024, 1024)
+        self.fc6 = Linear(1024, act_space_size)
 
 
-    def forward(self, state_batch: Batch) -> torch.Tensor:
+    def forward(self, state_batch: Batch, mask: torch.BoolTensor=None) -> torch.Tensor:
         #^ state_batch: Batch
         #batch_size = state_batch.num_graphs
 
         x_1 = state_batch.ref.unsqueeze(1)
+        x_2 = state_batch.pivots
+        x_3 = state_batch.step
+        if mask is not None:
+            x_1 = x_1[mask]
+            x_2 = x_2[mask]
+            x_3 = x_3[mask]
+
         x_1 = self.conv1(x_1)
         x_1 = self.relu(self.flatbn1(self.pool1(x_1)))
         x_1 = self.conv2(x_1)
         x_1 = self.relu(self.flatbn2(self.pool2(x_1)))
         x_1 = self.conv3(x_1)
         x_1 = self.relu(self.flatbn3(self.pool2(x_1))).view(x_1.shape[0], -1)
-        x_1 = self.dropout(x_1)
         #x_1 = x_1.repeat(batch_size, 1)
 
         '''
@@ -95,17 +102,19 @@ class PrimModel(BaseModel):
         #this makes shape right but might cause huge info loss
         x_2 = global_mean_pool(x_2, state_batch.batch) 
         '''
-        x_2 = self.relu(self.sp1(state_batch.pivots))
-        x_2 = self.relu(self.sp2(self.dropout(x_2)))
 
-        x_3 = self.relu(self.fc3(state_batch.step))#state_batch.step.float()))
+        x_2 = self.relu(self.sp1(x_2))
+        x_2 = self.relu(self.sp2(x_2))
+
+        x_3 = self.relu(self.fc3(x_3))#state_batch.step.float()))
 
         #x_4 = self.relu(self.fc4(state_batch.prims))
 
         x = torch.cat([x_1, x_2, x_3], dim=1)
 
         x = self.relu(self.fc4(x))
-        return self.fc5(x)
+        x = self.relu(self.fc5(x))
+        return self.fc6(x)
 
     
     def get_initial_state(self, ref: torch.FloatTensor) -> PrimState:
