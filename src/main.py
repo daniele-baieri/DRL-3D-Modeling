@@ -134,7 +134,7 @@ def virtual_expert_modeling():
 
     #online.load_state_dict(torch.load('../model/PRIM.pth'))
 
-    test = ShapeDataset('../data/ShapeNet', items_per_category={'plane': 493}, partition='TEST')
+    test = ShapeDataset('../data/ShapeNet', items_per_category={'watercraft': 400, 'plane': 493, 'pistol': 307, 'car': 400}, partition='TEST')
     print("TEST DATA: " + str(len(test)) + " instances")
     data = test[random.randint(0, len(test))]
     #data['target'].show()
@@ -143,7 +143,7 @@ def virtual_expert_modeling():
     curr = online.get_initial_state(data['reference'])
     history = exp.unroll(curr, PrimState.episode_len)
     for idx in range(len(history)):
-        curr = history[idx].get_source()
+        curr = history[idx].get_destination()
         print(history[idx].get_action())
         #if idx%27 == 0:
         #    scene = trimesh.scene.Scene()

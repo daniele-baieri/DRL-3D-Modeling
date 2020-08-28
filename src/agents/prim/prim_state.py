@@ -80,7 +80,7 @@ class PrimState(State):
 
         L = self.voxel_grid_side
         point_cloud = torch.cat([c.get_pivots() for c in self.__live_prims])#.to(device)
-        point_cloud -= point_cloud.mean(dim=-2, keepdim=True)
+        #point_cloud -= point_cloud.mean(dim=-2, keepdim=True)
         min_comp = point_cloud.min()
         max_comp = point_cloud.max()
         #min_comp = -0.5#self.__x_min if x_min is None else x_min
@@ -97,6 +97,7 @@ class PrimState(State):
             if c is not None:
                 verts = c.get_pivots()#.to(device)   
                 VOX = torch.floor((verts - min_comp) / pitch).long()
+                VOX[1,:] = torch.stack([VOX[0,:] + 1, VOX[1,:]]).max(dim=0)[0]
                 if not cubes:
                     G[VOX[0,0]:VOX[1,0], VOX[0,1]:VOX[1,1], VOX[0,2]:VOX[1,2]] = 1
                 else:
