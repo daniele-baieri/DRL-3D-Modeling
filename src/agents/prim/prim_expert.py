@@ -32,7 +32,7 @@ class PrimExpert(Expert):
             A = self.__env.get_action(act)
             A.set_index(act)
             new = self.__env.eval_reward(s, A(s))
-            if best is None or new > best:
+            if best is None or new >= best:
                 best = new
                 bestAct = A
         return Experience(s, bestAct(s), bestAct, best)
@@ -48,6 +48,8 @@ class PrimExpert(Expert):
         accum_rew = 0.0
         iterations = tqdm(range(max_steps), desc="Expert is unrolling...")
         for step in iterations:
+            if len(curr) <= 5:
+                x = 0
             prims = [i for i in range(P) if not curr.is_deleted(i)] # Primitives we can operate
             exp = self.poll(
                 curr, 

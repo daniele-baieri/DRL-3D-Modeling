@@ -1,7 +1,7 @@
 from __future__ import annotations
 import copy, time, math, os
 import torch
-from typing import List, Union, Dict
+from typing import List, Union, Dict, Tuple
 from itertools import product
 
 from geometry.cuboid import Cuboid
@@ -29,6 +29,13 @@ class PrimState(State):
         #assert len(prim) == pow(self.num_primitives, 3)
         self.__primitives = prim
         self.__live_prims = [c for c in self.__primitives if c is not None]
+        '''
+        if len(self.__live_prims) > 0:
+            self.__x_min = min(c.get_pivots().min().item() for c in self.__live_prims)
+            self.__x_max = max(c.get_pivots().max().item() for c in self.__live_prims)
+        else:
+            self.__x_min = self.__x_max = 0
+        '''
         #self.__geom_cache = None
         self.__mesh_cache = None
         self.__ref = reference
@@ -45,20 +52,6 @@ class PrimState(State):
 
     
     def to_geom_data(self) -> Data:
-        '''
-        if self.__geom_cache is None:
-            if len(self.__live_prims) == 0:
-                self.__geom_cache = Data(
-                    pos=torch.FloatTensor([[0,0,0],[0,0,0]]), 
-                    edge_index=torch.LongTensor([[0, 0],[0, 1]])
-                )
-            else:
-                self.__geom_cache = Cuboid.aggregate(self.__primitives)
-            self.__geom_cache.reference = self.__ref
-            self.__geom_cache.step = self.__step.unsqueeze(0)
-            self.__geom_cache.prims = torch.FloatTensor([[0 if p is None else 1 for p in self.__primitives]])
-        return self.__geom_cache
-        '''
         return Data(
             ref = self.__ref,
             pivots = self.get_cuboids_tensor().unsqueeze(0),
@@ -76,7 +69,7 @@ class PrimState(State):
             )
         return self.__mesh_cache
 
-    def voxelize(self, cubes: bool=False, use_cuda: bool=False) -> torch.LongTensor:
+    def voxelize(self, cubes: bool=False, use_cuda: bool=False, x_min: float=None, x_max: float=None) -> torch.LongTensor:
         """
         Efficient voxelization for union of cuboids shapes.
         """
@@ -87,8 +80,11 @@ class PrimState(State):
 
         L = self.voxel_grid_side
         point_cloud = torch.cat([c.get_pivots() for c in self.__live_prims])#.to(device)
+        point_cloud -= point_cloud.mean(dim=-2, keepdim=True)
         min_comp = point_cloud.min()
         max_comp = point_cloud.max()
+        #min_comp = -0.5#self.__x_min if x_min is None else x_min
+        #max_comp = 0.5#self.__x_max if x_max is None else x_max
         pitch = (max_comp - min_comp) / L #(self.max_coord - self.min_coord) / (self.voxel_grid_side) #
 
         if not cubes:
@@ -134,11 +130,14 @@ class PrimState(State):
     def get_step_onehot(self) -> torch.LongTensor:
         return self.__step
 
+    def get_bounding_box(self) -> Tuple[float]:
+        return self.__x_min, self.__x_max
+
     def is_deleted(self, prim: int) -> bool:
         return self.__primitives[prim] is None
 
     @classmethod
-    def init_state_space(cls, prim: int=3, voxelization_grid: int=64, episode_len: int=300, max_coord_abs: float=1.0) -> None:
+    def init_state_space(cls, prim: int=3, voxelization_grid: int=64, episode_len: int=300, max_coord_abs: float=0.25) -> None:
         assert prim > 0 and voxelization_grid > 0 and max_coord_abs > 0
         cls.num_primitives = prim ** 3
         cls.prims_per_side = prim
@@ -148,7 +147,7 @@ class PrimState(State):
         cls.voxel_grid_side = voxelization_grid
         cls.voxel_side = (cls.max_coord - cls.min_coord) / (cls.voxel_grid_side - 1)
         cls.episode_len = episode_len
-        cls.unit = math.sqrt(12.0) / 16.0
+        cls.unit = math.sqrt(3 * ((cls.max_coord - cls.min_coord) ** 2)) / 16.0
 
     @classmethod
     def initial(cls, ref: torch.FloatTensor) -> PrimState:

@@ -4,7 +4,8 @@ import warnings
 import numpy as np
 import os
 import matplotlib.pyplot as plt
-#import chardet
+
+from random import shuffle
 
 from typing import List, Dict, Union
 from pathlib import Path
@@ -47,13 +48,13 @@ label_to_synset = {v: k for k, v in synset_to_label.items()}
 class ShapeDataset(Dataset):
 
     def __init__(self, path: str, items_per_category: Dict[str, int], 
-                 partition: str='RFC', train_split: float=.9, imit_split: float=.015,
+                 partition: str='RFC', train_split: float=.95, imit_split: float=.04,
                  voxel_grid_side: int=64):
         """
         @param partition: string in {'RFC', 'IMIT', 'TEST'} (resp. reinforcement, imitation, testing).
         @param train_split: portion of data used for training. 1-@train_split = portion of data used for testing.
         @param imit_split: portion of *training* data used for imitation learning. 
-            @train_split-@imit_split = portion of data used for reinforcement learning.
+            @train_split-@imit_split*@train_split = portion of data used for reinforcement learning.
         """
         self.root = Path(path)
         self.paths = []
@@ -87,7 +88,8 @@ class ShapeDataset(Dataset):
                 models = models[stop:]
             self.paths += models
             self.synset_idxs += [i] * len(models)
-
+        
+        shuffle(self.paths)
         self.names = [p.name for p in self.paths]
 
     def __len__(self) -> int:
@@ -103,7 +105,8 @@ class ShapeDataset(Dataset):
         #model.show()
         #print(len(model.points))
         voxels = torch.from_numpy(model.points)#.to(os.environ['DEVICE'])
-        voxels = voxelize(voxels, 64)
+        voxels -= voxels.mean(dim=-2, keepdim=True)
+        voxels = voxelize(voxels, 64)#, x_min=-0.5, x_max=0.5)
         #print(voxels.sum())
 
         image = Image.open(render)

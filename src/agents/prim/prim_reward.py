@@ -8,6 +8,8 @@ from agents.prim.prim_state import PrimState
 from agents.prim.prim_model import PrimModel
 from agents.base_model import BaseModel
 
+from geometry.voxelize import voxelize
+
 
 class PrimReward(Reward):
 
@@ -26,11 +28,20 @@ class PrimReward(Reward):
         cuda = self.__device == 'cuda'
 
         target = model.to(self.__device)
+        '''
+        target_bb = (target.min().item(), target.max().item())
+        new_bb = new.get_bounding_box()
+        old_bb = old.get_bounding_box()
+        new_min, new_max = min(new_bb[0], target_bb[0]), max(new_bb[1], target_bb[1])
+        old_min, old_max = min(old_bb[0], target_bb[0]), max(old_bb[1], target_bb[1])
+        target_new = voxelize(target, 64, x_min=new_min, x_max=new_max, device=self.__device)
+        target_old = voxelize(target, 64, x_min=old_min, x_max=old_max, device=self.__device)
+        '''
 
-        cubes_vox_new = new.voxelize(cubes=True, use_cuda=cuda)
-        cubes_vox_old = old.voxelize(cubes=True, use_cuda=cuda)
-        vox_new = cubes_vox_new.sum(dim=0)
-        vox_old = cubes_vox_old.sum(dim=0)
+        cubes_vox_new = new.voxelize(cubes=True, use_cuda=cuda).bool()
+        cubes_vox_old = old.voxelize(cubes=True, use_cuda=cuda).bool()
+        vox_new = cubes_vox_new.sum(dim=0).bool()
+        vox_old = cubes_vox_old.sum(dim=0).bool()
 
         iou_new, iou_sum_new = self.iou(vox_new, target), self.iou_sum(cubes_vox_new, target, len(new))
         iou_old, iou_sum_old = self.iou(vox_old, target), self.iou_sum(cubes_vox_old, target, len(old))

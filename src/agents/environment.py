@@ -40,7 +40,7 @@ class Environment:
         act.set_index(idx)
         return act
 
-    def set_target(self, voxels: torch.LongTensor) -> None:
+    def set_target(self, voxels: torch.FloatTensor) -> None:
         self.__target = voxels
 
     def eval_reward(self, curr: State, succ: State) -> float:

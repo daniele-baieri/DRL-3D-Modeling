@@ -1,4 +1,4 @@
-import torch, time
+import torch, time, random
 
 from math import pi as PI
 from typing import List, Dict, Union, Callable
@@ -27,17 +27,6 @@ def polar(data: Data, norm=True, max_val=None) -> Data:
     data.edge_attr = polar
     return data
 
-'''
-def collate(x: List[Experience]) -> Dict:
-    curr = [polar(e.get_source().to_geom_data()) for e in x]
-    succ = [polar(e.get_destination().to_geom_data()) for e in x]
-    return {
-        'src': Batch.from_data_list(curr),
-        'dest': Batch.from_data_list(succ),
-        'act': torch.LongTensor([e.get_action().get_index() for e in x]),
-        'r': torch.FloatTensor([e.get_reward() for e in x])
-    }
-'''
 
 class ReplayBuffer(Dataset):
 
@@ -64,6 +53,7 @@ class ReplayBuffer(Dataset):
     def overwrite(self, D: List[Experience]) -> None:
         self.clear()
         self.memory = D
+        self.__pointer = len(D)
 
     def extend(self, D: List[Experience]) -> None:
         for e in D:
@@ -73,19 +63,26 @@ class ReplayBuffer(Dataset):
         self.memory = []
         self.__pointer = 0
 
+    def sample(self, n: int) -> List[Experience]:
+        assert n > 0
+        return random.sample(self.memory, n)
+
 
 class DoubleReplayBuffer:
 
-    def __init__(self, b_1: ReplayBuffer, b_2: ReplayBuffer, ep_len: int, batch_size: int, 
+    def __init__(self, b_1: ReplayBuffer, b_2: ReplayBuffer, batch_size: int, #ep_len: int, 
             loader_collate: Callable, is_frozen_1: bool=False, is_frozen_2: bool=False):
-        self.b_1 = RBDataLoader(b_1, ep_len, loader_collate, batch_size // 2)
-        self.b_2 = RBDataLoader(b_2, ep_len, loader_collate, batch_size // 2)
+        self.b_1 = b_1 #RBDataLoader(b_1, ep_len, loader_collate, batch_size // 2)
+        self.b_2 = b_2 #RBDataLoader(b_2, ep_len, loader_collate, batch_size // 2)
         self.b1_frozen = is_frozen_1
         self.b2_frozen = is_frozen_2
+        self.batch_size = batch_size
+        self.collate = loader_collate
 
     def sample(self) -> Dict[str, Union[Batch, torch.Tensor]]:
-        X_1 = next(iter(self.b_1))
-        X_2 = next(iter(self.b_2))
+        X_1 = self.b_1.sample(self.batch_size//2) #next(iter(self.b_1))
+        X_2 = self.b_2.sample(self.batch_size//2) #next(iter(self.b_2))
+        '''
         src = Batch.from_data_list(X_1['src'].to_data_list() + X_2['src'].to_data_list())
         dest = Batch.from_data_list(X_1['dest'].to_data_list() + X_2['dest'].to_data_list())
         act = torch.cat([X_1['act'], X_2['act']], dim=-1)
@@ -93,12 +90,15 @@ class DoubleReplayBuffer:
         return {
             'src': src, 'dest': dest, 'act': act, 'r': rew
         }
+        '''
+        return self.collate(X_1 + X_2)
+        
 
     def push(self, e: Experience) -> None:
         if not self.b1_frozen:
-            self.b_1.dataset.push(e)
+            self.b_1.push(e)
         if not self.b2_frozen:
-            self.b_2.dataset.push(e)
+            self.b_2.push(e)
     
 
 class RBDataLoader(DataLoader):
@@ -114,3 +114,6 @@ class RBDataLoader(DataLoader):
                 num_samples=ep_len * batch_size
             )
         )
+
+    def sample(self) -> Dict[str, Union[Batch, torch.Tensor]]:
+        return next(iter(self)) 

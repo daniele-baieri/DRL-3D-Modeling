@@ -24,7 +24,7 @@ from geometry.shape_dataset import ShapeDataset
 
 
 IMITATION_ITER = "DAgger({}) // Loss: {:0.4f} + {:0.4f} = {:0.4f} ({:0.4f})"
-REINFORCEMENT_ITER = "DDQN // Loss: {:0.4f} -- Reward: {:0.4f} -- Norm: {:0.4f}"
+REINFORCEMENT_ITER = "DDQN // Loss: {} -- Reward: {:0.4f} -- Norm: {:0.4f}"
 UNROLL_ITER = "Unrolling Agent // Acc. Reward: {}"
 
 
@@ -89,22 +89,24 @@ class DoubleDQNTrainer:
 
         self.__accum_loss = 0.0
         accum_rew = 0.0
-        progress_bar = tqdm(range(episode_len), desc=REINFORCEMENT_ITER.format(0.0, 0.0, 0.0))
+        progress_bar = tqdm(range(episode_len), desc="DDQN // Training not started")
 
         for step in progress_bar:
         
             curr = self.__env.get_state()
-            self.__online.eval()
             action = self.select_action(curr)
             succ, reward = self.__env.transition(action)
             accum_rew += reward
             exp = Experience(curr, succ, action, reward)
             self.reinforcement_buffer.push(exp)
 
-            batch = self.reinforcement_buffer.sample()
-            l, n = self.optimize_model(batch)
-            self.__accum_loss += l
-            progress_bar.set_description(REINFORCEMENT_ITER.format(self.__accum_loss / (step+1), accum_rew, n))
+            if not self.__train_rfc:
+                self.__train_rfc = step >= self.reinforcement_buffer.batch_size // 2
+            else:
+                batch = self.reinforcement_buffer.sample()
+                l, n = self.optimize_model(batch)
+                self.__accum_loss += l
+                progress_bar.set_description(REINFORCEMENT_ITER.format(self.__accum_loss / (step+1), accum_rew, n))
 
     def train(self, rfc_data: ShapeDataset, imit_data: ShapeDataset, episode_len: int,
             #long_mem: int, rl_mem: int, batch_size: int, 
@@ -135,10 +137,7 @@ class DoubleDQNTrainer:
         #torch.save(self.__online.state_dict(), self.__model_path)
         torch.save(self.__online.state_dict(), self.__model_path + '.imitation_only')
 
-        #rl_mem = ReplayBuffer(rl_mem)
-        #self.reinforcement_buffer = DoubleReplayBuffer(rl_mem, self.imitation_buffer.long_memory, episode_len, batch_size, is_frozen_2=True)
-
-
+        self.__train_rfc = False
         ep = 1
         for episode in rfc_data:
             print("Reinforcement episode: " + str(ep))
@@ -169,7 +168,7 @@ class DoubleDQNTrainer:
 
         with torch.no_grad():
             next_val = torch.zeros_like(rewards, dtype=torch.float, device=self.__device)
-            next_best_actions = self.__online(next_in, mask=non_final_mask).max(dim=-1)[1] # Best Q-values for next state actions   
+            next_best_actions = self.__online(next_in, mask=non_final_mask).max(dim=-1)[1] # Best next state actions
             next_val[non_final_mask] = self.__target(next_in, mask=non_final_mask).gather(1, next_best_actions.unsqueeze(0).T).squeeze()
             exp_act_val = (self.__gamma * next_val) + rewards # Target net Q-values for best next state actions
 
@@ -185,20 +184,18 @@ class DoubleDQNTrainer:
  
         self.__opt.zero_grad()
         loss.backward()
-        for param in self.__online.parameters():
-            param.grad.data.clamp(-1, 1)
-        #norm = nn.utils.clip_grad_norm_(self.__online.parameters(), 1.0)
+        #for param in self.__online.parameters():
+        #    param.grad.data.clamp(-1, 1)
+        norm = nn.utils.clip_grad_norm_(self.__online.parameters(), 1.0)
         self.__opt.step()
 
         if joint:
-            return rfc_loss, diff.item(), loss.item(), 0#norm
+            return rfc_loss, diff.item(), loss.item(), norm
 
-        return rfc_loss, 0#norm
+        return rfc_loss, norm
         
-
-    def select_action(self, s: State) -> Action:
-        r = random.random()
-        if r >= self.__epsilon: # greedy policy         
+    def select_action(self, s: State, greedy: bool=False) -> Action:
+        if greedy or random.random() >= self.__epsilon: # greedy policy         
             b = Batch.from_data_list([s.to_geom_data()])
             pred = torch.argmax(self.__online(b.to(self.__device)), -1).item()
             action = self.__env.get_action(pred)
@@ -215,7 +212,7 @@ class DoubleDQNTrainer:
         iterations = tqdm(range(episode_len), desc=UNROLL_ITER.format(accum_reward))
         for _ in iterations:
             curr = self.__env.get_state()
-            act = self.select_action(curr)
+            act = self.select_action(curr, greedy=True)
             succ, r = self.__env.transition(act)
             accum_reward += r
             exp = Experience(curr, succ, act, r)
